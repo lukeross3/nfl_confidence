@@ -1,6 +1,6 @@
 import numpy as np
 
-from utils import get_ranks
+from nfl_confidence.utils import get_ranks
 
 
 def test_get_ranks():
