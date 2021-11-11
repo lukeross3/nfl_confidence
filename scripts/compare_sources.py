@@ -1,5 +1,6 @@
 import gspread as gs
 import pandas as pd
+
 from nfl_confidence.utils import get_ranks, get_secret_key_path
 
 secret_path = get_secret_key_path(directory="secrets", username="lukeross")
