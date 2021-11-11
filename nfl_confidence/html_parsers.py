@@ -71,21 +71,18 @@ def get_espn_confidence(game_id: int):
 def get_espn_game_ids(week_no: int):
 
     # Get HTML
-    url = "https://www.espn.com/nfl/schedule"
+    url = f"https://www.espn.com/nfl/schedule/_/week/{week_no}"
     resp = requests.get(url)
     resp.raise_for_status()
     html = resp.text
     soup = BeautifulSoup(html, "html.parser")
-
-    # Check the week is correct
-    [button] = soup.findAll(
-        name="button", attrs={"class": "button button-filter dropdown-toggle sm selected-date"}
-    )
-    # TODO: No text in button?
+    # print(BeautifulSoup.prettify(soup))
+    # return
 
     # Get the game IDs
     game_ids = []
-    game_links = soup.findAll(attrs={"href": re.compile(r"/nfl/game/_/gameId/\d+")})
+    [schedule_div] = soup.findAll(name="div", attrs={"id": "sched-container"})
+    game_links = schedule_div.findAll(attrs={"href": re.compile(r"/nfl/game/_/gameId/\d+")})
     for game_link in game_links:
         game_id = int(re.search(r"\d+", game_link["href"]).group(0))
         game_ids.append(game_id)
@@ -95,8 +92,3 @@ def get_espn_game_ids(week_no: int):
 def get_week_espn_confidence(week_no: int):
     game_ids = get_espn_game_ids(week_no=week_no)
     return [get_espn_confidence(game_id=game_id) for game_id in game_ids]
-
-
-import json
-confidences = get_week_espn_confidence(1000)
-print(json.dumps(confidences, indent=4))
