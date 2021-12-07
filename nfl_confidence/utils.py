@@ -1,4 +1,5 @@
 import glob
+import json
 import os
 from typing import List
 
@@ -41,3 +42,21 @@ def get_secret_key_path(directory: str, username: str) -> str:
             f"directory {directory}"
         )
     return matching_paths[0]
+
+
+def load_team_name_map():
+
+    # Load original map
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, os.path.pardir, "config", "name_maps.json")
+    with open(config_path, "r") as f:
+        official_to_nicknames = json.load(f)
+
+    # Reverse map direction
+    nickname_to_official = {}
+    for official, nicknames in official_to_nicknames.items():
+        nicknames.append(official)  # Map the official name back to itself
+        for nickname in nicknames:
+            # assert nickname not in nickname_to_official, f"Repeated nickname: {nickname}"
+            nickname_to_official[nickname] = official
+    return nickname_to_official

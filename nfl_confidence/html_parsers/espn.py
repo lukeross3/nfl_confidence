@@ -3,10 +3,7 @@ import re
 import requests
 from bs4 import BeautifulSoup
 
-
-def convert_percent_to_float(percent_str: str):
-    assert percent_str[-1] == "%"
-    return float(percent_str[:-1])
+from nfl_confidence.html_parsers.utils import convert_percent_to_float
 
 
 def find_percent_in_html(soup: BeautifulSoup, class_value: str):
@@ -37,7 +34,7 @@ def get_team_name(soup: BeautifulSoup, home: bool = True):
     return team_name
 
 
-def get_espn_confidence(game_id: int):
+def get_espn_confidence(game_id: int, skip_errors: bool = False):
 
     # Get HTML
     url = f"https://www.espn.com/nfl/game/_/gameId/{game_id}"
@@ -46,11 +43,17 @@ def get_espn_confidence(game_id: int):
     html = resp.text
     soup = BeautifulSoup(html, "html.parser")
 
+    # Get team names
+    home_team = get_team_name(soup, home=True)
+    away_team = get_team_name(soup, home=False)
+
     # Get the home/away team win %
     try:
         home_percent = find_percent_in_html(soup=soup, class_value="value-home")
         away_percent = find_percent_in_html(soup=soup, class_value="value-away")
     except AssertionError:
+        if skip_errors:
+            return {home_team: None, away_team: None}
         raise RuntimeError(
             f"Couldn't find win percentages for game ID {game_id}. Please check that the game "
             f"exists and has not been played yet: {url}"
@@ -60,10 +63,6 @@ def get_espn_confidence(game_id: int):
     tie_percent = 100 - (home_percent + away_percent)
     home_percent += tie_percent / 2
     away_percent += tie_percent / 2
-
-    # Get team names
-    home_team = get_team_name(soup, home=True)
-    away_team = get_team_name(soup, home=False)
 
     return {home_team: round(home_percent, 2), away_team: round(away_percent, 2)}
 
@@ -76,8 +75,6 @@ def get_espn_game_ids(week_no: int):
     resp.raise_for_status()
     html = resp.text
     soup = BeautifulSoup(html, "html.parser")
-    # print(BeautifulSoup.prettify(soup))
-    # return
 
     # Get the game IDs
     game_ids = []
@@ -89,6 +86,6 @@ def get_espn_game_ids(week_no: int):
     return game_ids
 
 
-def get_week_espn_confidence(week_no: int):
+def get_week_espn_confidence(week_no: int, skip_errors: bool = False):
     game_ids = get_espn_game_ids(week_no=week_no)
-    return [get_espn_confidence(game_id=game_id) for game_id in game_ids]
+    return [get_espn_confidence(game_id=game_id, skip_errors=skip_errors) for game_id in game_ids]
