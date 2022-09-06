@@ -78,8 +78,7 @@ def get_espn_game_ids(week_no: int):
 
     # Get the game IDs
     game_ids = []
-    [schedule_div] = soup.findAll(name="div", attrs={"id": "sched-container"})
-    game_links = schedule_div.findAll(attrs={"href": re.compile(r"/nfl/game/_/gameId/\d+")})
+    game_links = soup.findAll(attrs={"href": re.compile(r"\/nfl\/game\?gameId=\d+")})
     for game_link in game_links:
         game_id = int(re.search(r"\d+", game_link["href"]).group(0))
         game_ids.append(game_id)
