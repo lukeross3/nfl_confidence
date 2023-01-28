@@ -1,8 +1,10 @@
 # NFL Confidence
 
-This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). By my assessment, the outcome of a football game is stochastic and the best we can do is assign a probability to a win or loss. This project grabs win probabilities from a few reputable sites (e.g. ESPN, FiveThirtyEight, etc), aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability. Whether I win or lose the league, my friends have named our league "Man vs. Machine" which I would call a success.
+This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). By my assessment, the outcome of a football game is stochastic and the best we can do is assign a probability to a win or loss. This project grabs win probabilities from a few reputable sites (e.g. ESPN, FiveThirtyEight, etc), aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
 
-NOTE: the main goal here is for me to beat my friends, not to maintain a codebase for public consumption. Feel free to use this code, but beware of low test coverage, no dockerfile/platform issues, minimal documentation, etc.
+In the 2022-2023 season I won the league and beat Shivam for the 3rd straight year. My friends also named our league "Man vs. Machine" which I'd call a success in its own right!
+
+NOTE: the main goal here is for me to beat my friends, not to maintain a codebase for public consumption. Feel free to use this code, but beware of low test coverage, no dockerfile/platform issues, minimal documentation, etc. None of these companies expose APIs for the data I want (at least not for free), so I'm scraping it from the HTML which is quite fragile!
 
 ## Example Run
 
