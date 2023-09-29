@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
-year = 2021
+year = 2022
 
 # Get raw result
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +19,17 @@ plt.title("Points Per Week")
 plt.xlabel("Week Number")
 plt.ylabel("Points")
 plt.savefig(os.path.join(project_dir, "images", f"weekly_{year}.png"), dpi=200)
+
+# Plot histogram of weekly scores
+plt.figure()
+# for col in df.columns:
+#     plt.hist(df[col], label=col, alpha=0.5, bins=40)
+# plt.legend(loc="best")
+axes = df.hist(sharex=True, sharey=True, alpha=0.75)
+for ax in axes.flatten():
+    ax.set_xlabel("Points Per Week")
+    ax.set_ylabel("Frequency")
+plt.savefig(os.path.join(project_dir, "images", f"weekly_hist_{year}.png"), dpi=200)
 
 # Plot cumulative results
 plt.figure()
