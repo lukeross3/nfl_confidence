@@ -13,7 +13,6 @@ def find_percent_in_html(soup: BeautifulSoup, class_value: str):
 
 
 def get_team_name(soup: BeautifulSoup, home: bool = True):
-
     # Home vs away case
     if home:
         team_class = "Gamestrip__Team--home"
@@ -35,12 +34,14 @@ def get_team_name(soup: BeautifulSoup, home: bool = True):
 
 
 def get_espn_confidence(game_id: int, skip_errors: bool = False):
-
     # Wrap in try block
     try:
         # Get HTML
         url = f"https://www.espn.com/nfl/game/_/gameId/{game_id}"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) "
+            "Gecko/2009021910 Firefox/3.0.7"
+        }
         resp = requests.get(url, headers=headers)  # Need to specify User-Agent in req to avoid 403
         resp.raise_for_status()
         html = resp.text
@@ -51,8 +52,10 @@ def get_espn_confidence(game_id: int, skip_errors: bool = False):
         away_team = get_team_name(soup, home=False)
 
         # Get the home/away team win %
-        away_class = "matchupPredictor__teamValue matchupPredictor__teamValue--b left-0 top-0 flex items-baseline absolute copy"  # noqa: E501
-        home_class = "matchupPredictor__teamValue matchupPredictor__teamValue--a bottom-0 right-0 flex items-baseline absolute copy"  # noqa: E501
+        away_class = "matchupPredictor__teamValue matchupPredictor__teamValue--b left-0 top-0 "
+        "flex items-baseline absolute copy"
+        home_class = "matchupPredictor__teamValue matchupPredictor__teamValue--a bottom-0 right-0 "
+        "flex items-baseline absolute copy"
         home_percent = find_percent_in_html(soup=soup, class_value=home_class)
         away_percent = find_percent_in_html(soup=soup, class_value=away_class)
 
@@ -71,10 +74,12 @@ def get_espn_confidence(game_id: int, skip_errors: bool = False):
 
 
 def get_espn_game_ids(week_no: int, year: int = 2023):
-
     # Get HTML
     url = f"https://www.espn.com/nfl/schedule/_/week/{week_no}/year/{year}/seasontype/2"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) "
+        "Gecko/2009021910 Firefox/3.0.7"
+    }
     resp = requests.get(url, headers=headers)  # Need to specify User-Agent in req to avoid 403
     resp.raise_for_status()
     html = resp.text

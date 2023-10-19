@@ -1,10 +1,8 @@
 import argparse
 
-import numpy as np
 import pandas as pd
 
 from nfl_confidence.html_parsers.espn import get_week_espn_confidence
-from nfl_confidence.html_parsers.fte import get_week_538_confidence
 from nfl_confidence.utils import get_ranks, load_team_name_map
 
 parser = argparse.ArgumentParser(description="Args for computing confidence rankings")
@@ -41,7 +39,7 @@ espn_confidence = get_week_espn_confidence(args.week, skip_errors=args.skip_erro
 
 # Re-map names
 nickname_to_official = load_team_name_map()
-for conf_list in [espn_confidence]:#, fte_confidence]:
+for conf_list in [espn_confidence]:  # , fte_confidence]:
     for i in range(len(conf_list)):
         for nickname, official in nickname_to_official.items():
             if nickname in conf_list[i]:
@@ -52,7 +50,9 @@ espn_games = set([frozenset(game.keys()) for game in espn_confidence])
 # fte_games = set([frozenset(game.keys()) for game in fte_confidence])
 # espn_missing = fte_games - espn_games
 # fte_missing = espn_games - fte_games
-# for missing_games, conf_list in zip([espn_missing, fte_missing], [espn_confidence, fte_confidence]):
+# for missing_games, conf_list in zip(
+#     [espn_missing, fte_missing], [espn_confidence, fte_confidence]
+# ):
 #     for missing_game in missing_games:
 #         conf_list.append({team: None for team in missing_game})
 
@@ -73,10 +73,12 @@ for i in range(len(espn_confidence)):
     team_b = list(espn_confidence[i].keys())[1]
     if espn_confidence[i][team_a] is not None:
         team_a_prob = (
-            args.alpha * espn_confidence[i][team_a] #+ (1 - args.alpha) * fte_confidence[i][team_a]
+            args.alpha
+            * espn_confidence[i][team_a]  # + (1 - args.alpha) * fte_confidence[i][team_a]
         )
         team_b_prob = (
-            args.alpha * espn_confidence[i][team_b] #+ (1 - args.alpha) * fte_confidence[i][team_b]
+            args.alpha
+            * espn_confidence[i][team_b]  # + (1 - args.alpha) * fte_confidence[i][team_b]
         )
         assert team_a_prob + team_b_prob == 100
         winner = team_a if team_a_prob >= team_b_prob else team_b

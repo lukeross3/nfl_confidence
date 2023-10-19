@@ -5,7 +5,6 @@ from nfl_confidence.html_parsers.utils import convert_percent_to_float
 
 
 def get_week_538_confidence(week_no: int, skip_errors: bool = False, year: int = 2023):
-
     # Get HTML
     url = f"https://projects.fivethirtyeight.com/{year}-nfl-predictions/games/"
     resp = requests.get(url)

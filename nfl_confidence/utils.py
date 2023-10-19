@@ -45,7 +45,6 @@ def get_secret_key_path(directory: str, username: str) -> str:
 
 
 def load_team_name_map():
-
     # Load original map
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, os.path.pardir, "config", "name_maps.json")
