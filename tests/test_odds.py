@@ -1,6 +1,12 @@
 from datetime import datetime
+from math import isclose
 
-from nfl_confidence.odds import convert_team_name, get_this_weeks_games, parse_the_odds_json
+from nfl_confidence.odds import (
+    compute_game_prob,
+    convert_team_name,
+    get_this_weeks_games,
+    parse_the_odds_json,
+)
 
 
 def test_convert_team_name():
@@ -62,3 +68,15 @@ def test_get_this_weeks_games_monday(the_odds_resp_json, mocker):
     games = parse_the_odds_json(the_odds_resp_json)
     this_weeks_games = get_this_weeks_games(games=games)
     assert len(this_weeks_games) == 1
+
+
+def test_compute_game_prob(the_odds_resp_json):
+    # Compute winner and probability for the _ game
+    game = parse_the_odds_json(the_odds_resp_json)[0]
+    assert game.home_team.value == "new-orleans-saints"
+    assert game.away_team.value == "jacksonville-jaguars"
+
+    # Check the computed probabilities
+    game = compute_game_prob(game=game)
+    assert game.predicted_winner.value == "new-orleans-saints"
+    assert isclose(game.win_probability, 0.5240068748981075)

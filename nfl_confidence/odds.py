@@ -2,10 +2,10 @@ import json
 import os
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 import requests
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, conlist, validator
 from pytz import timezone
 
 
@@ -45,19 +45,40 @@ class StrEnum(str, Enum):
 
 
 TeamNameEnum = StrEnum("TeamNameEnum", [(name, name) for name in get_valid_team_names()])
+HeadToHeadEnum = StrEnum("HeadToHeadEnum", [("h2h", "h2h")])
+
+
+class Outcome(BaseModel, extra="allow"):
+    name: TeamNameEnum
+    price: int
+
+    @validator("name", pre=True)
+    def convert_to_valid_team_name(cls, value):
+        return convert_team_name(name=value)
+
+
+class HeadToHeadOdds(BaseModel, extra="allow"):
+    key: HeadToHeadEnum
+    last_update: datetime
+    outcomes: conlist(Outcome, min_length=2, max_length=2)
 
 
 class BookMakerOdds(BaseModel, extra="allow"):
     title: str
     last_update: datetime
-    markets: List
+    markets: conlist(HeadToHeadOdds, min_length=1, max_length=1)
 
 
 class GameOdds(BaseModel, extra="allow"):
+    # Input fields
     home_team: TeamNameEnum
     away_team: TeamNameEnum
     commence_time: datetime
     bookmakers: List[BookMakerOdds]
+
+    # Derived/Optional fields
+    predicted_winner: Optional[TeamNameEnum] = None
+    win_probability: Optional[float] = None
 
     @validator("home_team", pre=True)
     def convert_home_to_valid_team_name(cls, value):
@@ -136,5 +157,58 @@ def get_this_weeks_games(games: List[GameOdds]) -> List[GameOdds]:
     )
 
 
-def convert_odds_to_probs():
-    pass
+def convert_odds_to_probs(odds: float) -> float:
+    """Convert american odds for moneyline into implied win probability. Calculation is taken from
+    https://www.gamingtoday.com/tools/implied-probability/
+
+    Args:
+        odds (float): American moneyline odds (can be positive or negative)
+
+    Returns:
+        float: Implied win probability
+    """
+    if odds < 0:
+        return (-1 * odds) / (-1 * odds + 100)
+    else:
+        return 100 / (odds + 100)
+
+
+def compute_game_prob(game: GameOdds, weights: Optional[Dict] = None) -> GameOdds:
+    """Adds the win_probability and predicted_winner fields to the input GameOdds object
+
+    Args:
+        game (GameOdds): Game to predict
+        weights (Optional[Dict], optional): A dictionary mapping Oddsmaker titles to a weighting
+        factor. Any oddsmaker not provided in the weights dict will default to
+        1 / len(game.bookmakers) for a simple arithmetic average. Defaults to None.
+
+    Returns:
+        GameOdds: GameOdds object with the predicted_winner and win_probability fields set
+    """
+    # Empty dict by default
+    if weights is None:
+        weights = {}
+
+    # Compute probs from odds for home and away team
+    home_prob, away_prob = 0, 0
+    for bookmaker in game.bookmakers:
+        weight = weights.get(bookmaker.title, 1 / len(game.bookmakers))
+        for outcome in bookmaker.markets[0].outcomes:
+            if outcome.name == game.home_team:
+                home_prob += weight * convert_odds_to_probs(odds=outcome.price)
+            else:
+                away_prob += weight * convert_odds_to_probs(odds=outcome.price)
+
+    # Re-normalize since oddsmakers include a "vig" to give the house an edge
+    home_prob /= home_prob + away_prob
+    away_prob /= home_prob + away_prob
+
+    # Add winner and prob to GameOdds object
+    # NOTE: ties are possible, but not worth predicting. Default to home team in case of even odds
+    if home_prob >= away_prob:
+        game.predicted_winner = game.home_team
+        game.win_probability = home_prob
+    else:
+        game.predicted_winner = game.away_team
+        game.win_probability = away_prob
+    return game
