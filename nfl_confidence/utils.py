@@ -22,6 +22,19 @@ def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:
     return offset + np.argsort(np.argsort(values))
 
 
+def load_the_odds_api_key() -> str:
+    """Load the odds API key from disk. Requires a json file with the key "api_key" located at
+    secrets/the_odds_api_key.json, relative to the project root directory
+
+    Returns:
+        str: The API key
+    """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(current_dir, os.pardir, "secrets", "the_odds_api_key.json")
+    with open(file_path, "r") as f:
+        return json.load(f)["api_key"]
+
+
 def get_secret_key_path(directory: str, username: str) -> str:
     """Find the user's secret key in the directory and return its path
 
