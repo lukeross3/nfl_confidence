@@ -79,4 +79,10 @@ def test_compute_game_prob(the_odds_resp_json):
     # Check the computed probabilities
     game = compute_game_prob(game=game)
     assert game.predicted_winner.value == "new-orleans-saints"
-    assert isclose(game.win_probability, 0.5240068748981075)
+    assert isclose(game.win_probability, 0.52400, abs_tol=0.00001)
+
+    # Check the computed agreement
+    assert isclose(game.oddsmaker_agreement, 1.0)
+
+    # Check the computed variance
+    assert isclose(game.win_probability_variance, 0.000009247330530489563)

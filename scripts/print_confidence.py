@@ -33,7 +33,7 @@ the_odds_json = get_the_odds_json(api_key=api_key, odds_format="american")
 games = parse_the_odds_json(the_odds_json=the_odds_json)
 
 # Filter to only this week's games
-# games = get_this_weeks_games(games=games)
+games = get_this_weeks_games(games=games)
 
 # Compute winners and probabilities for each game
 games = [compute_game_prob(game=game) for game in games]
@@ -54,7 +54,8 @@ df = pd.DataFrame(
             "home_team": game.home_team.value,
             "away_team": game.away_team.value,
             "predicted_winner": game.predicted_winner.value,
-            # "variance": variance,
+            "prob_variance": game.win_probability_variance,
+            "oddsmaker_agreement": game.oddsmaker_agreement,
             "confidence_prob": game.win_probability,
             "confidence_rank": confidence_rank,
         }
@@ -62,14 +63,10 @@ df = pd.DataFrame(
     ]
 )
 
-# # Set None values for games that already happened
-# df.loc[df.predicted_winner == -1, "confidence_prob"] = None
-# df.loc[df.predicted_winner == -1, "confidence_rank"] = None
-# df.loc[df.predicted_winner == -1, "predicted_winner"] = None
-
 # Display the data frame
-print(df)
+print(df, "\n")
 for column in df.columns:
     print(column)
     for val in list(df[column]):
         print(val)
+    print("\n")
