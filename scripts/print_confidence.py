@@ -19,6 +19,12 @@ parser.add_argument(
     default=16,
     help="Maximum confidence value for the week",
 )
+parser.add_argument(
+    "--verbose",
+    action="store_true",
+    required=False,
+    help="Whether to print the results column by column",
+)
 parser.add_argument("--skip_errors", dest="skip_errors", action="store_true")
 parser.set_defaults(skip_errors=False)
 args = parser.parse_args()
@@ -65,8 +71,9 @@ df = pd.DataFrame(
 
 # Display the data frame
 print(df, "\n")
-for column in df.columns:
-    print(column)
-    for val in list(df[column]):
-        print(val)
-    print("\n")
+if args.verbose:
+    for column in df.columns:
+        print(column)
+        for val in list(df[column]):
+            print(val)
+        print("\n")
