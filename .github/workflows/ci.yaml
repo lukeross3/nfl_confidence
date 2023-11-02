@@ -3,11 +3,11 @@
 name: NFL Confidence CI
 
 # Run on pushes to main branch or pull requests against main branch
-on:
-  push:
-    branches: [ $default-branch ]
-  pull_request:
-    branches: [ $default-branch ]
+on: [push]
+  # push:
+  #   branches: [ $default-branch ]
+  # pull_request:
+  #   branches: [ $default-branch ]
 
 jobs:
   build:
