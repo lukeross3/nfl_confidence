@@ -5,7 +5,7 @@ black:
 	black .
 
 flake8:
-	flake8 --max-line-length 100 .
+	flake8 .
 
 format: isort black flake8
 
