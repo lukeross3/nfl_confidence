@@ -1,12 +1,12 @@
 <h1 align="center">
-<p>NFL Confidence
+  NFL Confidence
 </h1>
 
 <h4 align=center>
+  
+  ![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yaml/badge.svg)
 
-![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yaml/badge.svg)
-
-Bragging Rights 🤝 Software Engineering
+  Bragging Rights 🤝 Software Engineering
 </h4>
 
 This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). This project grabs moneyline odds from the most popular oddsmakers, aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
@@ -36,4 +36,4 @@ $ python scripts/print_confidence.py
 
 ## What is a Confidence League?
 
-Every week, `n` NFL games are played (usually ~16). League participants pick a winner for each game and then rank the games by their confidence in the winner, assigning a confidence value from 1 up to `n` for each game. If your pick wins, then you get the confidence value for that game added to your score. If your pick loses, you get no points for that game. The league participant with the most points at the end of the regular season wins!
+Every week, `n` NFL games are played (at most 16). League participants pick a winner for each game and then rank the games by their confidence in the winner, assigning a confidence value from `17 - n` up to `16` for each game. If your pick wins, then you get the confidence value for that game added to your score. If your pick loses, you get no points for that game. The league participant with the most points at the end of the regular season wins!
