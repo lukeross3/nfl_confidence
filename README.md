@@ -1,34 +1,37 @@
-# NFL Confidence
+<h1 align="center">
+<p>NFL Confidence
+</h1>
+
+<h4 align=center>
 
 ![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yaml/badge.svg)
 
-This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). By my assessment, the outcome of a football game is stochastic and the best we can do is assign a probability to a win or loss. This project grabs win probabilities from a few reputable sites (e.g. ESPN, FiveThirtyEight, etc), aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
+Bragging Rights 🤝 Software Engineering
+</h4>
 
-In the 2022-2023 season I won the league and beat Shivam for the 3rd straight year. My friends also named our league "Man vs. Machine" which I'd call a success in its own right!
+This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). This project grabs moneyline odds from the most popular oddsmakers, aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
 
-NOTE: the main goal here is for me to beat my friends, not to maintain a codebase for public consumption. Feel free to use this code, but beware of low test coverage, no dockerfile/platform issues, minimal documentation, etc. None of these companies expose APIs for the data I want (at least not for free), so I'm scraping it from the HTML which is quite fragile!
+In the 2022-2023 season I won the league and beat Shivam for the 3rd straight year. The league has since been named **"Man vs. Machine"** which I'd call a success in its own right!
 
 ## Example Run
 
 ```
-$ python scripts/print_confidence.py --week 5
-                   team_a                team_b      predicted_winner  espn_prob  fte_prob   variance  confidence_prob  confidence_rank
-0       arizona-cardinals   philadelphia-eagles   philadelphia-eagles      53.60      58.0   4.840000           55.800              4.0
-1    tampa-bay-buccaneers       atlanta-falcons  tampa-bay-buccaneers      87.25      82.0   6.890625           84.625             15.0
-2        baltimore-ravens    cincinnati-bengals      baltimore-ravens      54.50      60.0   7.562500           57.250              5.0
-3           buffalo-bills   pittsburgh-steelers         buffalo-bills      85.95      88.0   1.050625           86.975             16.0
-4       carolina-panthers   san-francisco-49ers   san-francisco-49ers      51.20      70.0  88.360000           60.600              7.0
-5       minnesota-vikings         chicago-bears     minnesota-vikings      74.95      76.0   0.275625           75.475             13.0
-6        cleveland-browns  los-angeles-chargers  los-angeles-chargers      52.10      52.0   0.002500           52.050              2.0
-7        los-angeles-rams        dallas-cowboys      los-angeles-rams      74.20      66.0  16.810000           70.100             10.0
-8          denver-broncos    indianapolis-colts        denver-broncos      60.15      60.0   0.005625           60.075              6.0
-9    new-england-patriots         detroit-lions  new-england-patriots      54.60      55.0   0.040000           54.800              3.0
-10      green-bay-packers       new-york-giants     green-bay-packers      86.35      70.0  66.830625           78.175             14.0
-11   jacksonville-jaguars        houston-texans  jacksonville-jaguars      72.75      77.0   4.515625           74.875             12.0
-12     kansas-city-chiefs     las-vegas-raiders    kansas-city-chiefs      64.20      78.0  47.610000           71.100             11.0
-13          new-york-jets        miami-dolphins        miami-dolphins      57.45      64.0  10.725625           60.725              8.0
-14     new-orleans-saints      seattle-seahawks    new-orleans-saints      74.55      57.0  77.000625           65.775              9.0
-15  washington-commanders      tennessee-titans      tennessee-titans      41.80      59.0  73.960000           50.400              1.0
+$ python scripts/print_confidence.py
+               home_team              away_team      predicted_winner  prob_variance  oddsmaker_agreement  confidence_prob  confidence_rank
+0    pittsburgh-steelers       tennessee-titans   pittsburgh-steelers       0.000037                  1.0         0.576144                8
+1     kansas-city-chiefs         miami-dolphins    kansas-city-chiefs       0.000054                  1.0         0.522164                3
+2       cleveland-browns      arizona-cardinals      cleveland-browns       0.000024                  1.0         0.754698               15
+3        atlanta-falcons      minnesota-vikings       atlanta-falcons       0.000035                  1.0         0.655774               13
+4       baltimore-ravens       seattle-seahawks      baltimore-ravens       0.000040                  1.0         0.694440               14
+5     new-orleans-saints          chicago-bears    new-orleans-saints       0.000053                  1.0         0.759823               16
+6      green-bay-packers       los-angeles-rams     green-bay-packers       0.000015                  1.0         0.599242               10
+7         houston-texans   tampa-bay-buccaneers        houston-texans       0.000018                  1.0         0.575376                7
+8   new-england-patriots  washington-commanders  new-england-patriots       0.000051                  1.0         0.613363               12
+9      carolina-panthers     indianapolis-colts    indianapolis-colts       0.000038                  1.0         0.569476                6
+10   philadelphia-eagles         dallas-cowboys   philadelphia-eagles       0.000044                  1.0         0.593731                9
+11     las-vegas-raiders        new-york-giants     las-vegas-raiders       0.000034                  1.0         0.530778                4
+12    cincinnati-bengals          buffalo-bills    cincinnati-bengals       0.000121                  1.0         0.549072                5
+13         new-york-jets   los-angeles-chargers  los-angeles-chargers       0.000126                  1.0         0.613125               11
 ```
 
 ## What is a Confidence League?
