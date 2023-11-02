@@ -23,7 +23,6 @@ def get_valid_team_names() -> Set[str]:
         name_map = json.load(f)
     return set(name_map.keys())
 
-
 def convert_team_name(name: str) -> str:
     """Convert The Odds team name to standardized valid team name
 
