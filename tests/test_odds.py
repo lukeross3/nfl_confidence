@@ -86,7 +86,3 @@ def test_compute_game_prob(the_odds_resp_json):
 
     # Check the computed variance
     assert isclose(game.win_probability_variance, 0.000009247330530489563)
-
-
-def test_something_else():
-    assert False
