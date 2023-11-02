@@ -34,7 +34,7 @@ jobs:
     - name: Install python dependencies
       run: |
         python -m pip install --upgrade pip
-        poetry export -f requirements.txt --without-hashes | python -m pip install -r /dev/stdin
+        poetry export -f requirements.txt --without-hashes --with dev | python -m pip install -r /dev/stdin
 
     # Step 4) Run linting checks
     - name: Linting
