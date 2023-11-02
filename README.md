@@ -1,6 +1,6 @@
 # NFL Confidence
 
-![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yml/badge.svg)
+![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yaml/badge.svg)
 
 This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). By my assessment, the outcome of a football game is stochastic and the best we can do is assign a probability to a win or loss. This project grabs win probabilities from a few reputable sites (e.g. ESPN, FiveThirtyEight, etc), aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
 
