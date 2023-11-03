@@ -12,6 +12,7 @@ numpy = "^1.21.2"
 requests = "^2.26.0"
 bs4 = "^0.0.1"
 pydantic = "^2.4.2"
+python-dotenv = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 isort = "^5.12.0"

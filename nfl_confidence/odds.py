@@ -6,8 +6,9 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 import requests
-from pydantic import BaseModel, conlist, validator
+from pydantic import BaseModel, Field, field_validator
 from pytz import timezone
+from typing_extensions import Annotated
 
 
 def get_valid_team_names() -> Set[str]:
@@ -65,7 +66,8 @@ class Outcome(BaseModel, extra="allow"):
     # Derived fields
     raw_win_probability: Optional[float] = None
 
-    @validator("name", pre=True)
+    @field_validator("name", mode="before")
+    @classmethod
     def convert_to_valid_team_name(cls, value):
         return convert_team_name(name=value)
 
@@ -73,14 +75,14 @@ class Outcome(BaseModel, extra="allow"):
 class HeadToHeadOdds(BaseModel, extra="allow"):
     key: HeadToHeadEnum
     last_update: datetime
-    outcomes: conlist(Outcome, min_length=2, max_length=2)
+    outcomes: Annotated[List[Outcome], Field(min_length=2, max_length=2)]
 
 
 class BookMakerOdds(BaseModel, extra="allow"):
     # Input fields
     title: str
     last_update: datetime
-    markets: conlist(HeadToHeadOdds, min_length=1, max_length=1)
+    markets: Annotated[List[HeadToHeadOdds], Field(min_length=1, max_length=1)]
 
     # Derived Fields
     predicted_winner: Optional[TeamNameEnum] = None
@@ -100,15 +102,18 @@ class GameOdds(BaseModel, extra="allow"):
     win_probability_variance: Optional[float] = None
     oddsmaker_agreement: Optional[float] = None
 
-    @validator("home_team", pre=True)
+    @field_validator("home_team", mode="before")
+    @classmethod
     def convert_home_to_valid_team_name(cls, value):
         return convert_team_name(name=value)
 
-    @validator("away_team", pre=True)
+    @field_validator("away_team", mode="before")
+    @classmethod
     def convert_away_to_valid_team_name(cls, value):
         return convert_team_name(name=value)
 
-    @validator("commence_time", pre=True)
+    @field_validator("commence_time", mode="before")
+    @classmethod
     def add_tz_to_commence_time(cls, value):
         return add_timezone(date_str=value)
 
