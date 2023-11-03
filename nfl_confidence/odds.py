@@ -18,10 +18,10 @@ def get_valid_team_names() -> Set[str]:
     """
     current_file = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_file)
-    file_path = os.path.join(current_dir, "config", "name_maps.json")
+    file_path = os.path.join(current_dir, "assets", "team_names.json")
     with open(file_path, "r") as f:
         name_map = json.load(f)
-    return set(name_map.keys())
+    return set(name_map)
 
 
 def convert_team_name(name: str) -> str:
