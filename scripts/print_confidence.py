@@ -37,7 +37,9 @@ dotenv.load_dotenv()
 settings = Settings()
 
 # Get Moneyline/Head2head odds
-the_odds_json = get_the_odds_json(api_key=settings.THE_ODDS_API_KEY, odds_format="american")
+the_odds_json = get_the_odds_json(
+    api_key=settings.THE_ODDS_API_KEY.get_secret_value(), odds_format="american"
+)
 
 # Parse the response json into GameOdds objects
 games = parse_the_odds_json(the_odds_json=the_odds_json)
