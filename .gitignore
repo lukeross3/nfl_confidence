@@ -4,3 +4,5 @@ results/
 images/
 archive/
 secrets/
+.env
+.coverage

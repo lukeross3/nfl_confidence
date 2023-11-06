@@ -8,8 +8,10 @@ from nfl_confidence.odds import (
     get_this_weeks_games,
     parse_the_odds_json,
 )
-from nfl_confidence.utils import get_ranks, load_the_odds_api_key
+from nfl_confidence.settings import Settings
+from nfl_confidence.utils import get_ranks
 
+# Setup and parse script args
 parser = argparse.ArgumentParser(description="Args for computing confidence rankings")
 parser.add_argument(
     "--max_confidence",
@@ -29,11 +31,13 @@ parser.add_argument("--skip_errors", dest="skip_errors", action="store_true")
 parser.set_defaults(skip_errors=False)
 args = parser.parse_args()
 
-# Load the odds API Key
-api_key = load_the_odds_api_key()
+# Load env and settings
+settings = Settings(_env_file=".env")
 
 # Get Moneyline/Head2head odds
-the_odds_json = get_the_odds_json(api_key=api_key, odds_format="american")
+the_odds_json = get_the_odds_json(
+    api_key=settings.THE_ODDS_API_KEY.get_secret_value(), odds_format="american"
+)
 
 # Parse the response json into GameOdds objects
 games = parse_the_odds_json(the_odds_json=the_odds_json)
