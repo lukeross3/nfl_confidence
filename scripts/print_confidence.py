@@ -1,6 +1,5 @@
 import argparse
 
-import dotenv
 import pandas as pd
 
 from nfl_confidence.odds import (
@@ -33,8 +32,7 @@ parser.set_defaults(skip_errors=False)
 args = parser.parse_args()
 
 # Load env and settings
-dotenv.load_dotenv()
-settings = Settings()
+settings = Settings(_env_file=".env")
 
 # Get Moneyline/Head2head odds
 the_odds_json = get_the_odds_json(
