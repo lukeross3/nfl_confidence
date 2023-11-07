@@ -6,8 +6,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 import requests
-from pydantic import BaseModel, Field, field_validator
-from pydantic_core.core_schema import FieldValidationInfo
+from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
 
@@ -99,22 +98,21 @@ class GameOdds(BaseModel, extra="allow"):
     commence_time: datetime
     bookmakers: List[BookMakerOdds]
 
+    @computed_field
+    @property
+    def game_id(self) -> int:
+        data_dict = {
+            "home_team": self.home_team,
+            "away_team": self.away_team,
+            "commence_time": str(self.commence_time),
+        }
+        return dict_to_hash(d=data_dict)
+
     # Derived/Optional fields
-    game_id: Optional[str] = None  # TODO: Update to computed fields!!! https://docs.pydantic.dev/2.0/usage/computed_fields/
     predicted_winner: Optional[TeamNameEnum] = None
     win_probability: Optional[float] = None
     win_probability_variance: Optional[float] = None
     oddsmaker_agreement: Optional[float] = None
-
-    @field_validator("game_id", mode="before")
-    @classmethod
-    def compute_game_id(cls, value, info: FieldValidationInfo):
-        data_dict = {
-            "home_team": info.data["home_team"],
-            "away_team": info.data["away_team"],
-            "commence_time": str(info.data["commence_time"]),
-        }
-        return dict_to_hash(d=data_dict)
 
     @field_validator("home_team", mode="before")
     @classmethod

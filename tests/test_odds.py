@@ -86,3 +86,10 @@ def test_compute_game_prob(the_odds_resp_json):
 
     # Check the computed variance
     assert isclose(game.win_probability_variance, 0.000009247330530489563)
+
+
+def test_game_id_hash(the_odds_resp_json):
+    games = parse_the_odds_json(the_odds_resp_json)
+    assert games[0].home_team.value == "new-orleans-saints"
+    assert games[0].away_team.value == "jacksonville-jaguars"
+    assert games[0].game_id == "1KmgfYwSjfIZmt2eyPkuMg=="
