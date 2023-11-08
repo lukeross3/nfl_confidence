@@ -6,9 +6,11 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 import requests
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
+
+from nfl_confidence.utils import dict_to_hash
 
 
 def get_valid_team_names() -> Set[str]:
@@ -59,12 +61,13 @@ HeadToHeadEnum = StrEnum("HeadToHeadEnum", [("h2h", "h2h")])
 
 
 class Outcome(BaseModel, extra="allow"):
-    # Input fields
     name: TeamNameEnum
     price: int
 
-    # Derived fields
-    raw_win_probability: Optional[float] = None
+    @computed_field
+    @property
+    def raw_win_probability(self) -> float:
+        return convert_odds_to_probs(odds=self.price)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -79,14 +82,28 @@ class HeadToHeadOdds(BaseModel, extra="allow"):
 
 
 class BookMakerOdds(BaseModel, extra="allow"):
-    # Input fields
     title: str
     last_update: datetime
     markets: Annotated[List[HeadToHeadOdds], Field(min_length=1, max_length=1)]
 
-    # Derived Fields
-    predicted_winner: Optional[TeamNameEnum] = None
-    win_probability: Optional[float] = None
+    @computed_field
+    @property
+    def win_probability(self) -> float:
+        raw_probs = np.array([outcome.raw_win_probability for outcome in self.markets[0].outcomes])
+        normalized_probs = raw_probs / np.sum(raw_probs)
+        return np.max(normalized_probs)
+
+    @computed_field
+    @property
+    def predicted_winner(self) -> Optional[TeamNameEnum]:
+        raw_probs = [outcome.raw_win_probability for outcome in self.markets[0].outcomes]
+
+        # In case of tie, return None
+        if raw_probs[0] == raw_probs[1]:
+            return None
+
+        max_idx = np.argmax(raw_probs)
+        return self.markets[0].outcomes[max_idx].name
 
 
 class GameOdds(BaseModel, extra="allow"):
@@ -96,11 +113,68 @@ class GameOdds(BaseModel, extra="allow"):
     commence_time: datetime
     bookmakers: List[BookMakerOdds]
 
-    # Derived/Optional fields
-    predicted_winner: Optional[TeamNameEnum] = None
-    win_probability: Optional[float] = None
-    win_probability_variance: Optional[float] = None
-    oddsmaker_agreement: Optional[float] = None
+    @computed_field
+    @property
+    def game_id(self) -> int:
+        data_dict = {
+            "home_team": self.home_team,
+            "away_team": self.away_team,
+            "commence_time": str(self.commence_time),
+        }
+        return dict_to_hash(d=data_dict)
+
+    @computed_field
+    @property
+    def home_team_win_prob(self) -> float:
+        home_prob = 0.0
+        for bookmaker in self.bookmakers:
+            if bookmaker.predicted_winner == self.home_team:
+                home_prob += bookmaker.win_probability
+            elif bookmaker.predicted_winner == self.away_team:
+                home_prob += 1.0 - bookmaker.win_probability
+            else:
+                home_prob += 0.5
+        return home_prob / len(self.bookmakers)
+
+    @computed_field
+    @property
+    def away_team_win_prob(self) -> float:
+        return 1.0 - self.home_team_win_prob
+
+    @computed_field
+    @property
+    def predicted_winner(self) -> TeamNameEnum:
+        if self.home_team_win_prob >= self.away_team_win_prob:
+            return self.home_team
+        else:
+            return self.away_team
+
+    @computed_field
+    @property
+    def win_probability(self) -> float:
+        return max(self.home_team_win_prob, self.away_team_win_prob)
+
+    @computed_field
+    @property
+    def win_probability_variance(self) -> float:
+        bookmaker_probs = []
+        for bookmaker in self.bookmakers:
+            if bookmaker.predicted_winner == self.predicted_winner:
+                prob = bookmaker.win_probability
+            elif bookmaker.predicted_winner == self.away_team:
+                prob = 1.0 - bookmaker.win_probability
+            else:
+                prob = 0.5
+            bookmaker_probs.append(prob)
+        return np.var(bookmaker_probs)
+
+    @computed_field
+    @property
+    def oddsmaker_agreement(self) -> float:
+        agree = [
+            bookmaker.predicted_winner == self.predicted_winner for bookmaker in self.bookmakers
+        ]
+        return np.mean(agree)
 
     @field_validator("home_team", mode="before")
     @classmethod
@@ -214,120 +288,3 @@ def convert_odds_to_probs(odds: float) -> float:
         return (-1 * odds) / (-1 * odds + 100)
     else:
         return 100 / (odds + 100)
-
-
-def compute_raw_outcome_probs(game: GameOdds) -> GameOdds:
-    """Computes raw_win_probability for each Outcome object in the GameOdds object. Values are raw
-    in that they include the house "vig" and may not sum to 1.
-
-    Args:
-        game (GameOdds): Game to predict
-
-    Returns:
-        GameOdds: Game with raw_win_probability set for every Outcome object
-    """
-    for bookmaker in game.bookmakers:
-        for outcome in bookmaker.markets[0].outcomes:
-            outcome.raw_win_probability = convert_odds_to_probs(odds=outcome.price)
-    return game
-
-
-def compute_bookmaker_probs(game: GameOdds) -> GameOdds:
-    """Computes predicted_winner and win_probability for each bookmaker in the game. Also computes
-    raw_win_probability for each Outcome object in the game
-
-    Args:
-        game (GameOdds): Game to predict
-
-    Returns:
-        GameOdds: Game with bookmaker fields set
-    """
-    # First pass: compute raw, un-normalized win probs for every outcome
-    game = compute_raw_outcome_probs(game=game)
-
-    # Second pass: normalize probs to sum to 1 (removing "vig") and compute winner
-    for bookmaker in game.bookmakers:
-        # Get the index of the home team
-        home_index = 0
-        if bookmaker.markets[0].outcomes[home_index].name != game.home_team:
-            home_index = 1
-        assert bookmaker.markets[0].outcomes[home_index].name == game.home_team
-        away_index = 1 - home_index
-
-        # Normalize
-        home_prob = bookmaker.markets[0].outcomes[home_index].raw_win_probability
-        away_prob = bookmaker.markets[0].outcomes[away_index].raw_win_probability
-        prob_sum = home_prob + away_prob
-        home_prob = home_prob / prob_sum
-        away_prob = away_prob / prob_sum
-        bookmaker.markets[0].outcomes[home_index].win_probability = home_prob
-        bookmaker.markets[0].outcomes[away_index].win_probability = away_prob
-
-        # Compute bookmaker winner
-        # NOTE: ties are possible, but not worth predicting. Default to home team
-        if home_prob >= away_prob:
-            bookmaker.predicted_winner = game.home_team
-            bookmaker.win_probability = home_prob
-        else:
-            bookmaker.predicted_winner = game.away_team
-            bookmaker.win_probability = away_prob
-
-    return game
-
-
-def compute_game_prob(game: GameOdds, weights: Optional[Dict] = None) -> GameOdds:
-    """Adds the win_probability, predicted_winner, oddsmaker_agreement, and win_probability_variance
-    fields to the input GameOdds object. Also adds predicted_winner and win_probability to each
-    bookmaker and raw_win_probability to each Outcome
-
-    Args:
-        game (GameOdds): Game to predict
-        weights (Optional[Dict], optional): A dictionary mapping Oddsmaker titles to a weighting
-        factor. Any oddsmaker not provided in the weights dict will default to
-        1 / len(game.bookmakers) for a simple arithmetic average. Defaults to None.
-
-    Returns:
-        GameOdds: GameOdds object with the additional fields set
-    """
-    # Empty dict by default
-    if weights is None:
-        weights = {}
-
-    # First compute win probs for each bookmaker
-    game = compute_bookmaker_probs(game=game)
-
-    # Compute average win prob over each bookmaker
-    home_prob, away_prob = 0, 0
-    for bookmaker in game.bookmakers:
-        weight = weights.get(bookmaker.title, 1 / len(game.bookmakers))
-        if bookmaker.predicted_winner == game.home_team:
-            home_prob += weight * bookmaker.win_probability
-            away_prob += weight * (1.0 - bookmaker.win_probability)
-        else:
-            away_prob += weight * bookmaker.win_probability
-            home_prob += weight * (1.0 - bookmaker.win_probability)
-
-    # Add winner and prob to GameOdds object
-    # NOTE: ties are possible, but not worth predicting. Default to home team in case of even odds
-    if home_prob >= away_prob:
-        game.predicted_winner = game.home_team
-        game.win_probability = home_prob
-    else:
-        game.predicted_winner = game.away_team
-        game.win_probability = away_prob
-
-    # Compute agreement rate among betmakers
-    agree = [bookmaker.predicted_winner == game.predicted_winner for bookmaker in game.bookmakers]
-    game.oddsmaker_agreement = np.mean(agree)
-
-    # Compute variance among bookmakers
-    bookmaker_probs = []
-    for bookmaker in game.bookmakers:
-        if bookmaker.predicted_winner == game.predicted_winner:
-            prob = bookmaker.win_probability
-        else:
-            prob = 1 - bookmaker.win_probability
-        bookmaker_probs.append(prob)
-    game.win_probability_variance = np.var(bookmaker_probs)
-
-    return game

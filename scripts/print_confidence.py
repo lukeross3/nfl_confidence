@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 
 from nfl_confidence.odds import (
-    compute_game_prob,
     get_the_odds_json,
     get_this_weeks_games,
     parse_the_odds_json,
@@ -45,9 +44,6 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
 
-# Compute winners and probabilities for each game
-games = [compute_game_prob(game=game) for game in games]
-
 # Sort games by commence time
 games = sorted(games, key=lambda x: x.commence_time)
 
@@ -61,6 +57,7 @@ confidence_ranks += args.max_confidence - max_conf
 df = pd.DataFrame(
     [
         {
+            "game_id": game.game_id,
             "home_team": game.home_team.value,
             "away_team": game.away_team.value,
             "predicted_winner": game.predicted_winner.value,
