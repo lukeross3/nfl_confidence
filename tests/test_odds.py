@@ -2,7 +2,6 @@ from datetime import datetime
 from math import isclose
 
 from nfl_confidence.odds import (
-    compute_game_prob,
     convert_team_name,
     get_this_weeks_games,
     parse_the_odds_json,
@@ -77,7 +76,6 @@ def test_compute_game_prob(the_odds_resp_json):
     assert game.away_team.value == "jacksonville-jaguars"
 
     # Check the computed probabilities
-    game = compute_game_prob(game=game)
     assert game.predicted_winner.value == "new-orleans-saints"
     assert isclose(game.win_probability, 0.52400, abs_tol=0.00001)
 
