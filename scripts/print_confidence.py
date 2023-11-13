@@ -57,7 +57,7 @@ confidence_ranks += args.max_confidence - max_conf
 df = pd.DataFrame(
     [
         {
-            "game_id": game.game_id,
+            "id": game.id,
             "home_team": game.home_team.value,
             "away_team": game.away_team.value,
             "predicted_winner": game.predicted_winner.value,

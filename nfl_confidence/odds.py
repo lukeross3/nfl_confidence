@@ -10,8 +10,6 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
 
-from nfl_confidence.utils import dict_to_hash
-
 
 def get_valid_team_names() -> Set[str]:
     """Return a set containing all valid team names
@@ -108,20 +106,11 @@ class BookMakerOdds(BaseModel, extra="allow"):
 
 class GameOdds(BaseModel, extra="allow"):
     # Input fields
+    id: str
     home_team: TeamNameEnum
     away_team: TeamNameEnum
     commence_time: datetime
     bookmakers: List[BookMakerOdds]
-
-    @computed_field
-    @property
-    def game_id(self) -> int:
-        data_dict = {
-            "home_team": self.home_team,
-            "away_team": self.away_team,
-            "commence_time": str(self.commence_time),
-        }
-        return dict_to_hash(d=data_dict)
 
     @computed_field
     @property
