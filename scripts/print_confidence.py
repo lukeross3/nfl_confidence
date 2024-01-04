@@ -1,6 +1,9 @@
 import argparse
+from datetime import datetime
 
 import pandas as pd
+from loguru import logger
+from pytz import timezone
 
 from nfl_confidence.odds import (
     get_the_odds_json,
@@ -33,6 +36,14 @@ args = parser.parse_args()
 # Load env and settings
 settings = Settings(_env_file=".env")
 
+# Check the current time
+now = datetime.now(tz=timezone("US/Eastern"))
+date_str = now.strftime("%I:%M on %A, %b %d")
+correct_time = input(f"Is it curently {date_str}? (y/n) ")
+if correct_time.lower() != "y":
+    logger.error("System time is wrong. Please restart")
+    exit()
+
 # Get Moneyline/Head2head odds
 the_odds_json = get_the_odds_json(
     api_key=settings.THE_ODDS_API_KEY.get_secret_value(), odds_format="american"
@@ -44,8 +55,8 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
 
-# Sort games by commence time
-games = sorted(games, key=lambda x: x.commence_time)
+# Sort games by commence time, then ID to keep order the same on subsequent runs
+games = sorted(games, key=lambda x: (x.commence_time, x.id))
 
 # Compute confidence ranks
 win_probs = [game.win_probability for game in games]
@@ -57,7 +68,7 @@ confidence_ranks += args.max_confidence - max_conf
 df = pd.DataFrame(
     [
         {
-            "game_id": game.game_id,
+            "id": game.id,
             "home_team": game.home_team.value,
             "away_team": game.away_team.value,
             "predicted_winner": game.predicted_winner.value,
