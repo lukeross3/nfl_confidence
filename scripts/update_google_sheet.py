@@ -134,8 +134,8 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
 
-# Sort games by commence time
-games = sorted(games, key=lambda x: x.commence_time)
+# Sort games by commence time, then ID to keep order the same on subsequent runs
+games = sorted(games, key=lambda x: (x.commence_time, x.id))
 
 # Check that union of existing and the-odds API games has a valid count
 existing_game_ids = set(df.id)

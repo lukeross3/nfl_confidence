@@ -55,8 +55,8 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
 
-# Sort games by commence time
-games = sorted(games, key=lambda x: x.commence_time)
+# Sort games by commence time, then ID to keep order the same on subsequent runs
+games = sorted(games, key=lambda x: (x.commence_time, x.id))
 
 # Compute confidence ranks
 win_probs = [game.win_probability for game in games]
