@@ -14,6 +14,8 @@ def test_settings_raises_error_if_no_api_key():
 
 
 def test_access_api_key_value():
-    os.environ["THE_ODDS_API_KEY"] = "test123"
-    settings = Settings()
+    settings = Settings(
+        GOOGLE_SHEETS_SECRET_PATH="fake/path/",
+        THE_ODDS_API_KEY="test123",
+    )
     assert settings.THE_ODDS_API_KEY.get_secret_value() == "test123"
