@@ -6,12 +6,11 @@
   
   ![CI Build](https://github.com/lukeross3/nfl_confidence/actions/workflows/ci.yaml/badge.svg)
 
-  Bragging Rights 🤝 Software Engineering
 </h4>
 
-This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). This project grabs moneyline odds from the most popular oddsmakers, aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
+This repo is a personal project to help me beat my friends in our [NFL confidence league](#what-is-a-confidence-league). This project grabs moneyline odds from a few popular oddsmakers, aggregates them, and greedily assigns a confidence value to each game based on the predicted win probability.
 
-In the 2022-2023 season I won the league and beat Shivam for the 3rd straight year. The league has since been named **"Man vs. Machine"** which I'd call a success in its own right!
+Using this strategy, I've won the league the last 2 seasons (2022-2023 and 2023-2024) and beat Shivam for the 4th straight year. The league has since been named **"Man vs. Machine"** which I'd call a success in its own right!
 
 ## Example Run
 

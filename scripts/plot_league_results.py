@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 
-year = 2022
+year = 2023
 
 # Get raw result
 script_dir = os.path.dirname(os.path.abspath(__file__))
