@@ -10,7 +10,7 @@ def test_settings_raises_error_if_no_api_key():
     if "THE_ODDS_API_KEY" in os.environ:
         del os.environ["THE_ODDS_API_KEY"]
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_access_api_key_value():

@@ -10,4 +10,4 @@ class Settings(BaseSettings):
     GOOGLE_SHEETS_SECRET_PATH: Optional[str]
 
     # Settings config
-    model_config = SettingsConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(extra="ignore", env_file=".env")
