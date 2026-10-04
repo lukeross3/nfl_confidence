@@ -217,16 +217,19 @@ def parse_the_odds_json(the_odds_json: List[Dict]) -> List[GameOdds]:
 
 
 def filter_games_by_date(
-    games: List[GameOdds], after: datetime = datetime.min, before: datetime = datetime.max
+    games: List[GameOdds],
+    after: datetime = datetime.min.replace(tzinfo=timezone("UTC")),
+    before: datetime = datetime.max.replace(tzinfo=timezone("UTC")),
 ) -> List[GameOdds]:
     """Filter the list of games down to only those with a commence_time between the given range.
 
     Args:
         games (List[GameOdds]): List of GameOdds objects
         after (datetime, optional): Keep only games with commence_time strictly greater than after.
-            Defaults to datetime.min.
-        before (datetime, optional): Keep only games with commence_time strictly less than after.
-            Defaults to datetime.max.
+            Defaults to datetime.min in UTC. Like commence_time, it needs a timezone, since
+            Python can't compare datetimes with and without one.
+        before (datetime, optional): Keep only games with commence_time strictly less than
+            before. Defaults to datetime.max in UTC.
 
     Returns:
         List[GameOdds]: Filter game list

@@ -1,6 +1,6 @@
 import argparse
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 from loguru import logger
@@ -15,7 +15,6 @@ from nfl_confidence.settings import Settings
 from nfl_confidence.utils import assign_confidence, get_unused_confidence
 from nfl_confidence.yahoo import (
     DEFAULT_STATE_PATH,
-    PICK_LOCK_MINUTES,
     get_current_week,
     get_league_picks,
     get_locked_picks,
@@ -79,16 +78,6 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
-
-# Skip games whose picks have locked, which happens a few minutes before kickoff
-lock_time = datetime.now(tz=timezone("US/Eastern")) + timedelta(minutes=PICK_LOCK_MINUTES)
-locked_soon = [game for game in games if game.commence_time <= lock_time]
-if locked_soon:
-    logger.info(
-        f"Skipping {len(locked_soon)} game(s) kicking off within {PICK_LOCK_MINUTES} minutes, "
-        "since their picks have locked"
-    )
-    games = [game for game in games if game.commence_time > lock_time]
 
 # Sort games by commence time, then ID to keep order the same on subsequent runs
 games = sorted(games, key=lambda x: (x.commence_time, x.id))

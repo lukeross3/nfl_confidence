@@ -19,9 +19,6 @@ USER_AGENT = (
 # Yahoo serves this page title (with a 200 status) when the request isn't logged in
 LOGGED_OUT_TITLE = "There was a Problem"
 
-# The league's pick deadline: each game's pick locks this many minutes before kickoff
-PICK_LOCK_MINUTES = 5
-
 # Group picks table layout: 3 game header rows (favored, spread, underdog), a column header
 # row, then one row per member. Columns are a label, one per game, then the weekly total.
 GROUP_PICKS_TABLE_CLASS = "yspNflPickGroupPickTable"
@@ -189,7 +186,7 @@ def _picks_table(records: List[Dict]) -> pd.DataFrame:
 
 def parse_group_picks(html: str, week: int) -> pd.DataFrame:
     """Parse a group picks page into one row per (member, game). Skips picks Yahoo hides
-    (other members' picks on games that haven't locked; your own row shows yours) and picks
+    (other members' picks on games that haven't kicked off; your own row shows yours) and picks
     not made yet. Pending games have correct and points missing.
 
     Args:
@@ -220,7 +217,7 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
         for game_index, (cell, game) in enumerate(zip(cells[1:-1], games), start=1):
             text = cell.get_text(" ", strip=True)
             if text in ("", "--"):
-                continue  # Pick hidden until the game locks, or not made yet
+                continue  # Pick hidden until the game kicks off, or not made yet
             match = PICK_CELL_PATTERN.match(text)
             if match is None:
                 raise ValueError(f"Unrecognized pick cell {text!r} in week {week}")
@@ -366,7 +363,7 @@ def get_locked_picks(
     if unknown:
         raise ValueError(f"Games not in this Yahoo week: {[sorted(m) for m in unknown]}")
 
-    # Yahoo shows other members' picks once a game locks, and the winner once it's final.
+    # Yahoo shows other members' picks once a game kicks off, and the winner once it's final.
     # The member's own row isn't used, since it may show their picks before games lock.
     other_picks = picks.loc[picks.team_id != team_id, "game"]
     started = week_games.game.isin(other_picks) | week_games.winner.notna()
