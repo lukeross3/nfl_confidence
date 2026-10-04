@@ -174,8 +174,9 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
             the weekly total Yahoo shows
 
     Returns:
-        pd.DataFrame: Columns week, team_id, team_name, game, favorite, underdog, spread,
-            winner, pick, confidence, correct, points
+        pd.DataFrame: Columns week, team_id, team_name, game, n_games, favorite, underdog,
+            spread, winner, pick, confidence, correct, points. Yahoo's confidence values for
+            a week run from 1 to n_games, the number of games that week.
     """
     rows = _get_table_rows(html, week)
     games = _parse_games(rows)
@@ -211,6 +212,7 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
                     "team_id": team_id,
                     "team_name": team_name,
                     "game": game_index,
+                    "n_games": len(games),
                     **game,
                     "pick": match.group("team"),
                     "confidence": confidence,
@@ -258,21 +260,22 @@ def get_league_picks(
     return pd.concat(weeks, ignore_index=True)
 
 
-def get_teams_picked_at(picks: pd.DataFrame, team_id: int, confidence: int) -> Dict[str, List[int]]:
-    """Get the teams a member has picked at a given confidence value, e.g. to avoid repeat 16s
+def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
+    """Get the teams a member has picked at each week's top confidence value, e.g. to avoid
+    repeat 16s. The top value is the week's number of games, so 16 normally, and less on
+    bye weeks.
 
     Args:
         picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
         team_id (int): Member whose picks to check
-        confidence (int): Confidence value to check
 
     Returns:
-        Dict[str, List[int]]: Standardized team name -> weeks it was picked at that value
+        Dict[str, List[int]]: Standardized team name -> weeks it was the top pick
     """
     if picks.empty:
         return {}
     team_names = get_yahoo_team_names()
-    matches = picks[(picks.team_id == team_id) & (picks.confidence == confidence)]
+    matches = picks[(picks.team_id == team_id) & (picks.confidence == picks.n_games)]
     teams_picked = {}
     for pick, week in zip(matches.pick, matches.week):
         teams_picked.setdefault(team_names[pick], []).append(int(week))
@@ -312,7 +315,8 @@ def get_locked_picks(
             haven't started yet
 
     Raises:
-        ValueError: If an open matchup isn't one of the week's games
+        ValueError: If an open matchup isn't one of the week's games, or a game that isn't
+            open hasn't started either (e.g. the odds API doesn't list it yet)
 
     Returns:
         pd.DataFrame: Locked games, with columns from parse_week_games plus the member's pick,
@@ -323,7 +327,22 @@ def get_locked_picks(
     if unknown:
         raise ValueError(f"Games not in this Yahoo week: {[sorted(m) for m in unknown]}")
 
-    locked = week_games[[matchup not in open_matchups for matchup in matchups]]
+    # Yahoo shows other members' picks once a game locks, and the winner once it's final.
+    # The member's own row isn't used, since it may show their picks before games lock.
+    other_picks = picks.loc[picks.team_id != team_id, "game"] if not picks.empty else []
+    started = week_games.game.isin(other_picks) | week_games.winner.notna()
+    not_open = pd.Series([matchup not in open_matchups for matchup in matchups])
+    missing = week_games[not_open.values & ~started.values]
+    if not missing.empty:
+        games = ", ".join(f"{game.favorite} vs {game.underdog}" for game in missing.itertuples())
+        raise ValueError(
+            f"Can't tell whether these games have started: {games}. The odds API doesn't "
+            "list them, and Yahoo shows no other member's pick or a result for them yet. If "
+            "they haven't kicked off, the odds API hasn't posted them yet, so rerun later. If "
+            "they're in progress and nobody else picked them, rerun once they're final"
+        )
+
+    locked = week_games[not_open.values]
     pick_columns = ["game", "pick", "confidence", "correct"]
     if picks.empty:
         member_picks = pd.DataFrame(columns=pick_columns)

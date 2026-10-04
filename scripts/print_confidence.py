@@ -21,7 +21,7 @@ from nfl_confidence.yahoo import (
     get_matchups,
     get_page,
     get_session,
-    get_teams_picked_at,
+    get_top_picks,
     parse_group_picks,
     parse_week_games,
     pickem_url,
@@ -35,7 +35,8 @@ parser.add_argument(
     type=int,
     required=False,
     default=16,
-    help="Maximum confidence value for the week",
+    help="Maximum confidence value for the week. With --yahoo, it's set to the week's number of "
+    "games instead, since Yahoo uses values 1 through the number of games",
 )
 parser.add_argument(
     "--verbose",
@@ -80,9 +81,15 @@ games = get_this_weeks_games(games=games)
 
 # Sort games by commence time, then ID to keep order the same on subsequent runs
 games = sorted(games, key=lambda x: (x.commence_time, x.id))
+if not games:
+    raise ValueError(
+        "No open games left this week in the odds API (e.g. after Monday night's kickoff). "
+        "Rerun once next week's games are listed"
+    )
 
 # Find which confidence values are still available
 n_games = len(games)
+max_confidence = args.max_confidence
 used_confidence = []
 past_top_picks = {}
 if args.yahoo:
@@ -106,7 +113,9 @@ if args.yahoo:
         team_id=args.team_id,
         open_matchups=open_matchups,
     )
+    # Yahoo's values run 1 through the week's number of games, so bye weeks top out below 16
     n_games = len(week_games)
+    max_confidence = n_games
     used_confidence = locked.confidence.dropna().astype(int).tolist()
     logger.info(f"Week {week}: {len(locked)} of {n_games} games already started")
     for game in locked.itertuples():
@@ -119,13 +128,13 @@ if args.yahoo:
             result = {True: "won", False: "lost"}.get(game.correct, "pending")
             logger.info(f"  Picked {game.pick} at {int(game.confidence)} ({result})")
 
-    # Teams you've already used at the top value, which the league doesn't allow repeating
+    # Teams you've already used as a week's top pick, which the league doesn't allow repeating
     past_picks = get_league_picks(session, args.group_id, last_week=week - 1)
-    past_top_picks = get_teams_picked_at(past_picks, args.team_id, args.max_confidence)
+    past_top_picks = get_top_picks(past_picks, args.team_id)
 
 # Compute confidence ranks, using the highest values still available
 available_confidence = get_unused_confidence(
-    n_games=n_games, used=used_confidence, max_confidence=args.max_confidence
+    n_games=n_games, used=used_confidence, max_confidence=max_confidence
 )
 if args.yahoo:
     logger.info(f"Assigning confidence values {available_confidence}")
@@ -160,15 +169,15 @@ if args.verbose:
 
 # Warn loudly, last so it isn't missed, if the top pick repeats a team already used at the top
 sys.stdout.flush()
-top_picks = df.loc[df.confidence_rank == args.max_confidence, "predicted_winner"]
+top_picks = df.loc[df.confidence_rank == max_confidence, "predicted_winner"]
 for team in top_picks:
     if team in past_top_picks:
         weeks_used = ", ".join(str(week) for week in past_top_picks[team])
         banner = "!" * 80
         logger.warning(
             f"\n{banner}\n"
-            f"  REPEAT {args.max_confidence}: recommended {args.max_confidence} is {team}, "
-            f"already used at {args.max_confidence} in week {weeks_used}\n"
-            f"  Pick a different {args.max_confidence} before submitting\n"
+            f"  REPEAT TOP PICK: recommended {max_confidence} is {team}, "
+            f"already your top pick in week {weeks_used}\n"
+            f"  Pick a different {max_confidence} before submitting\n"
             f"{banner}"
         )

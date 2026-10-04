@@ -6,7 +6,7 @@ from nfl_confidence.yahoo import (
     get_current_week,
     get_locked_picks,
     get_matchups,
-    get_teams_picked_at,
+    get_top_picks,
     get_yahoo_team_names,
     parse_group_picks,
     parse_week_games,
@@ -33,6 +33,7 @@ def test_parse_group_picks_finished_week(group_picks_week1_html):
     assert picks.correct.notna().all()
     assert picks.winner.notna().all()
     assert (picks.week == 1).all()
+    assert (picks.n_games == 16).all()
 
     # Weekly totals match what Yahoo showed
     totals = picks.groupby("team_id").points.sum().to_dict()
@@ -53,9 +54,10 @@ def test_parse_group_picks_finished_week(group_picks_week1_html):
 def test_parse_group_picks_in_progress_week(group_picks_week4_html):
     picks = parse_group_picks(group_picks_week4_html, week=4)
 
-    # Only the played game's picks are visible
+    # Only the played game's picks are visible, but the game count includes hidden games
     assert len(picks) == 6
     assert (picks.game == 1).all()
+    assert (picks.n_games == 16).all()
     assert (picks.winner == "Cle").all()
     assert picks.set_index("team_id").points.to_dict() == {
         1: 3,
@@ -127,15 +129,75 @@ def test_get_locked_picks(group_picks_week4_html):
             open_matchups={frozenset(("new-york-jets", "new-york-giants"))},
         )
 
+    # The second game has no odds, but hasn't started on Yahoo either
+    with pytest.raises(ValueError, match="Can't tell whether these games have started"):
+        get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[2:]))
 
-def test_get_teams_picked_at(group_picks_week1_html):
+    # The member's own visible pick doesn't mean the game has started
+    own_pick = picks[picks.team_id == 3].assign(game=2, pick="Bal", confidence=16)
+    with pytest.raises(ValueError, match="Can't tell whether these games have started"):
+        get_locked_picks(
+            week_games,
+            pd.concat([picks, own_pick]),
+            team_id=3,
+            open_matchups=set(matchups[2:]),
+        )
+
+
+def test_get_locked_picks_game_in_progress(group_picks_week4_html):
+    # The first game has kicked off but isn't final: no winner, picks visible but not graded,
+    # and no points yet
+    live = (
+        group_picks_week4_html.replace('class="yspNflPickWin"', "")
+        .replace('class="incorrect"', 'class=""')
+        .replace('class="ysf-pick-opponent correct"', 'class="ysf-pick-opponent"')
+        .replace("<strong>3</strong>", "<strong>0</strong>")
+        .replace("<strong>8</strong>", "<strong>0</strong>")
+    )
+    week_games = parse_week_games(live, week=4)
+    picks = parse_group_picks(live, week=4)
+    assert week_games.winner.isna().all()
+    assert picks.correct.isna().all()
+    matchups = get_matchups(week_games)
+
+    # Other members' visible picks show it has started
+    locked = get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[1:]))
+    assert len(locked) == 1
+    assert (locked.pick.iloc[0], locked.confidence.iloc[0]) == ("Pit", 5)
+    assert pd.isna(locked.correct.iloc[0])
+
+    # With no other member's pick visible, it can't tell the game started, so it fails loudly
+    with pytest.raises(ValueError, match="Can't tell whether these games have started"):
+        get_locked_picks(
+            week_games, picks[picks.team_id == 3], team_id=3, open_matchups=set(matchups[1:])
+        )
+
+
+def test_get_top_picks(group_picks_week1_html):
     week1 = parse_group_picks(group_picks_week1_html, week=1)
-    assert get_teams_picked_at(week1, team_id=3, confidence=16) == {"los-angeles-chargers": [1]}
+    assert get_top_picks(week1, team_id=3) == {"los-angeles-chargers": [1]}
 
     # The same pick at 16 in a second week is a repeat
     two_weeks = pd.concat([week1, week1.assign(week=2)])
-    assert get_teams_picked_at(two_weeks, team_id=3, confidence=16) == {
-        "los-angeles-chargers": [1, 2]
+    assert get_top_picks(two_weeks, team_id=3) == {"los-angeles-chargers": [1, 2]}
+
+    # On a 15-game bye week, the top pick is the one at 15
+    bye_week = pd.DataFrame(
+        {
+            "week": [5, 5],
+            "team_id": [3, 3],
+            "pick": ["KC", "LAC"],
+            "confidence": [15, 14],
+            "n_games": [15, 15],
+        }
+    )
+    assert get_top_picks(pd.concat([week1, bye_week]), team_id=3) == {
+        "los-angeles-chargers": [1],
+        "kansas-city-chiefs": [5],
+    }
+    repeat_on_bye_week = bye_week.assign(confidence=[14, 15])
+    assert get_top_picks(pd.concat([week1, repeat_on_bye_week]), team_id=3) == {
+        "los-angeles-chargers": [1, 5]
     }
 
-    assert get_teams_picked_at(pd.DataFrame(), team_id=3, confidence=16) == {}
+    assert get_top_picks(pd.DataFrame(), team_id=3) == {}
