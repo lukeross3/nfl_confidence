@@ -14,6 +14,7 @@ from nfl_confidence.yahoo import (
     parse_group_picks,
     parse_week_games,
     pickem_url,
+    select_top_picks,
 )
 
 
@@ -200,6 +201,21 @@ def test_get_locked_picks_own_picks_before_lock(group_picks_week4_live_html):
     matchups = get_matchups(week_games)
     with pytest.raises(ValueError, match="Can't tell whether these games have started: Buf vs NE"):
         get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[3:]))
+
+
+def test_select_top_picks(group_picks_week1_html):
+    week1 = parse_group_picks(group_picks_week1_html, week=1)
+
+    # One pick per member, at 16 in a 16-game week
+    top_picks = select_top_picks(week1)
+    assert sorted(top_picks.team_id) == [1, 2, 3, 4, 5, 6]
+    assert (top_picks.confidence == 16).all()
+
+    # On a 15-game bye week, the top value is 15
+    bye_week = week1[week1.confidence <= 15].assign(n_games=15)
+    top_picks = select_top_picks(bye_week)
+    assert sorted(top_picks.team_id) == [1, 2, 3, 4, 5, 6]
+    assert (top_picks.confidence == 15).all()
 
 
 def test_get_top_picks(group_picks_week1_html):

@@ -1,6 +1,11 @@
 import argparse
 
-from nfl_confidence.yahoo import DEFAULT_STATE_PATH, get_league_picks, get_session
+from nfl_confidence.yahoo import (
+    DEFAULT_STATE_PATH,
+    get_league_picks,
+    get_session,
+    select_top_picks,
+)
 
 # Setup and parse script args
 parser = argparse.ArgumentParser(
@@ -12,10 +17,10 @@ parser.add_argument("--group_id", type=int, default=39345, help="Pick'em group I
 parser.add_argument("--state_path", type=str, default=DEFAULT_STATE_PATH)
 args = parser.parse_args()
 
-# Get this season's picks so far. Yahoo's top value each week is the number of games.
+# Get this season's picks so far
 session = get_session(args.state_path)
 picks = get_league_picks(session, args.group_id)
-top_picks = picks[picks.confidence == picks.n_games]
+top_picks = select_top_picks(picks)
 
 # Each member's pick by week, marked with whether it won
 result_marks = top_picks.correct.map({True: " ✓", False: " ✗"}).fillna("")
@@ -26,10 +31,11 @@ table = (
     .fillna("?")
 )
 
-# Label bye weeks with their top value
+# Label bye weeks, which have fewer games than the season's full weeks, with their top value
 n_games = picks.groupby("week").n_games.first()
 table.index = [
-    f"{week} (top={n_games[week]})" if n_games[week] < 16 else week for week in table.index
+    f"{week} (top={n_games[week]})" if n_games[week] < n_games.max() else week
+    for week in table.index
 ]
 
 # Season record on top picks. Pending games have correct missing, which sum and count skip.

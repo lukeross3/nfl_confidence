@@ -27,7 +27,7 @@ WINNER_CLASS = "yspNflPickWin"
 PICK_CELL_PATTERN = re.compile(r"^(?P<team>\S+)\s*\((?P<confidence>\d+)\)$")
 
 # Columns and types of the picks table from parse_group_picks and get_league_picks. correct
-# is nullable, so mean, sum and count skip pending games.
+# and points are nullable, so mean, sum and count skip pending games.
 PICK_DTYPES = {
     "week": "int64",
     "team_id": "int64",
@@ -41,7 +41,7 @@ PICK_DTYPES = {
     "pick": "object",
     "confidence": "int64",
     "correct": "boolean",
-    "points": "float64",
+    "points": "Int64",
 }
 
 
@@ -283,10 +283,22 @@ def get_league_picks(
     return pd.concat(weeks, ignore_index=True)
 
 
+def select_top_picks(picks: pd.DataFrame) -> pd.DataFrame:
+    """Select the picks made at each week's top confidence value. The top value is the week's
+    number of games, so 16 normally, and less on bye weeks.
+
+    Args:
+        picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
+
+    Returns:
+        pd.DataFrame: The top picks, with the same columns
+    """
+    return picks[picks.confidence == picks.n_games]
+
+
 def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
     """Get the teams a member has picked at each week's top confidence value, e.g. to avoid
-    repeat 16s. The top value is the week's number of games, so 16 normally, and less on
-    bye weeks.
+    repeat 16s
 
     Args:
         picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
@@ -296,7 +308,8 @@ def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
         Dict[str, List[int]]: Standardized team name -> weeks it was the top pick
     """
     team_names = get_yahoo_team_names()
-    matches = picks[(picks.team_id == team_id) & (picks.confidence == picks.n_games)]
+    top_picks = select_top_picks(picks)
+    matches = top_picks[top_picks.team_id == team_id]
     teams_picked = {}
     for pick, week in zip(matches.pick, matches.week):
         teams_picked.setdefault(team_names[pick], []).append(int(week))
