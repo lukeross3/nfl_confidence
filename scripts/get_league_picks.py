@@ -24,6 +24,10 @@ parser.add_argument("--output_path", type=str, default=None)
 args = parser.parse_args()
 output_path = args.output_path or os.path.join("results", f"league_picks_{args.season}.csv")
 
+# results/ is gitignored, so a fresh clone won't have it. Create it before downloading, so a
+# bad path fails right away.
+os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+
 # Fetch and parse each week's group picks page
 session = get_session(args.state_path)
 picks = get_league_picks(session, args.group_id, args.first_week, args.last_week)
