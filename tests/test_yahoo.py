@@ -133,44 +133,44 @@ def test_get_locked_picks(group_picks_week4_html):
     with pytest.raises(ValueError, match="Can't tell whether these games have started"):
         get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[2:]))
 
-    # The member's own visible pick doesn't mean the game has started
-    own_pick = picks[picks.team_id == 3].assign(game=2, pick="Bal", confidence=16)
-    with pytest.raises(ValueError, match="Can't tell whether these games have started"):
-        get_locked_picks(
-            week_games,
-            pd.concat([picks, own_pick]),
-            team_id=3,
-            open_matchups=set(matchups[2:]),
-        )
 
-
-def test_get_locked_picks_game_in_progress(group_picks_week4_html):
-    # The first game has kicked off but isn't final: no winner, picks visible but not graded,
-    # and no points yet
-    live = (
-        group_picks_week4_html.replace('class="yspNflPickWin"', "")
-        .replace('class="incorrect"', 'class=""')
-        .replace('class="ysf-pick-opponent correct"', 'class="ysf-pick-opponent"')
-        .replace("<strong>3</strong>", "<strong>0</strong>")
-        .replace("<strong>8</strong>", "<strong>0</strong>")
-    )
-    week_games = parse_week_games(live, week=4)
-    picks = parse_group_picks(live, week=4)
-    assert week_games.winner.isna().all()
-    assert picks.correct.isna().all()
+def test_get_locked_picks_game_in_progress(group_picks_week4_live_html):
+    week_games = parse_week_games(group_picks_week4_live_html, week=4)
+    picks = parse_group_picks(group_picks_week4_live_html, week=4)
     matchups = get_matchups(week_games)
 
-    # Other members' visible picks show it has started
-    locked = get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[1:]))
-    assert len(locked) == 1
-    assert (locked.pick.iloc[0], locked.confidence.iloc[0]) == ("Pit", 5)
-    assert pd.isna(locked.correct.iloc[0])
+    # The first game is final. The second is in progress: no winner yet, and its picks are
+    # visible but not graded.
+    assert week_games.winner.iloc[0] == "Cle"
+    assert week_games.winner.iloc[1:].isna().all()
+    assert picks[picks.game == 2].correct.isna().all()
+
+    # Other members' visible picks show the second game has started
+    locked = get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[2:]))
+    assert locked.game.tolist() == [1, 2]
+    assert locked.pick.tolist() == ["Pit", "Ind"]
+    assert locked.confidence.tolist() == [5, 11]
+    assert not locked.correct.iloc[0]
+    assert pd.isna(locked.correct.iloc[1])
 
     # With no other member's pick visible, it can't tell the game started, so it fails loudly
-    with pytest.raises(ValueError, match="Can't tell whether these games have started"):
+    with pytest.raises(ValueError, match="Can't tell whether these games have started: Ind vs Was"):
         get_locked_picks(
-            week_games, picks[picks.team_id == 3], team_id=3, open_matchups=set(matchups[1:])
+            week_games, picks[picks.team_id == 3], team_id=3, open_matchups=set(matchups[2:])
         )
+
+
+def test_get_locked_picks_own_picks_before_lock(group_picks_week4_live_html):
+    week_games = parse_week_games(group_picks_week4_live_html, week=4)
+    picks = parse_group_picks(group_picks_week4_live_html, week=4)
+
+    # Yahoo shows your own picks before games lock, but other members' stay hidden
+    assert picks.groupby("team_id").size().to_dict() == {1: 2, 2: 2, 3: 16, 4: 2, 5: 2, 6: 2}
+
+    # So your own pick on the third game doesn't mean it has started
+    matchups = get_matchups(week_games)
+    with pytest.raises(ValueError, match="Can't tell whether these games have started: Buf vs NE"):
+        get_locked_picks(week_games, picks, team_id=3, open_matchups=set(matchups[3:]))
 
 
 def test_get_top_picks(group_picks_week1_html):

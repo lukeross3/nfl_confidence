@@ -33,3 +33,11 @@ def group_picks_week1_html():
 def group_picks_week4_html():
     """An in-progress week: only the first game has been played"""
     return _read_asset("yahoo_group_picks_week4.html")
+
+
+@pytest.fixture
+def group_picks_week4_live_html():
+    """The same week, saved during the second game: the first game is final, the second is
+    in progress, and the rest haven't started. Member 3's row shows their (made-up) picks on
+    the games that haven't started, as Yahoo shows your own picks before they lock."""
+    return _read_asset("yahoo_group_picks_week4_live.html")

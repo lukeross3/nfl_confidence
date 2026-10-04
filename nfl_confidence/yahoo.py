@@ -162,8 +162,9 @@ def parse_week_games(html: str, week: int) -> pd.DataFrame:
 
 
 def parse_group_picks(html: str, week: int) -> pd.DataFrame:
-    """Parse a group picks page into one row per (member, game). Picks Yahoo hides (games
-    not yet locked) are skipped, and pending games have correct/points of None.
+    """Parse a group picks page into one row per (member, game). Skips picks Yahoo hides
+    (other members' picks on games that haven't locked; your own row shows yours) and picks
+    not made yet. Pending games have correct/points of None.
 
     Args:
         html (str): HTML of /pickem/{group_id}/grouppicks?week={week}
@@ -316,7 +317,9 @@ def get_locked_picks(
 
     Raises:
         ValueError: If an open matchup isn't one of the week's games, or a game that isn't
-            open hasn't started either (e.g. the odds API doesn't list it yet)
+            open hasn't started either (e.g. the odds API doesn't list it yet). It also
+            raises for a game in progress when no other member's pick on it is visible, since
+            nothing on the page shows the game has started.
 
     Returns:
         pd.DataFrame: Locked games, with columns from parse_week_games plus the member's pick,
@@ -331,8 +334,8 @@ def get_locked_picks(
     # The member's own row isn't used, since it may show their picks before games lock.
     other_picks = picks.loc[picks.team_id != team_id, "game"] if not picks.empty else []
     started = week_games.game.isin(other_picks) | week_games.winner.notna()
-    not_open = pd.Series([matchup not in open_matchups for matchup in matchups])
-    missing = week_games[not_open.values & ~started.values]
+    is_open = pd.Series(matchups, index=week_games.index).isin(open_matchups)
+    missing = week_games[~is_open & ~started]
     if not missing.empty:
         games = ", ".join(f"{game.favorite} vs {game.underdog}" for game in missing.itertuples())
         raise ValueError(
@@ -342,7 +345,7 @@ def get_locked_picks(
             "they're in progress and nobody else picked them, rerun once they're final"
         )
 
-    locked = week_games[not_open.values]
+    locked = week_games[~is_open]
     pick_columns = ["game", "pick", "confidence", "correct"]
     if picks.empty:
         member_picks = pd.DataFrame(columns=pick_columns)
