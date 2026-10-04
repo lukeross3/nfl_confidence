@@ -39,30 +39,32 @@ with sync_playwright() as p:
         headless=False,
         chromium_sandbox=True,
     )
-    page = context.pages[0] if context.pages else context.new_page()
-    page.goto(login_url)
-    logger.info("Log in to Yahoo in the Chrome window that just opened")
+    # Close Chrome however this ends, so the profile is saved cleanly
+    try:
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto(login_url)
+        logger.info("Log in to Yahoo in the Chrome window that just opened")
 
-    deadline = time.time() + args.timeout
-    last_seen = None
-    while True:
-        # Watch the most recently opened tab, in case login opens a new one
-        page = context.pages[-1]
-        try:
-            title = page.title()
-        except Exception:
-            title = None  # Page is mid-navigation; check again next loop
-        if (page.url, title) != last_seen:
-            last_seen = (page.url, title)
-            logger.info(f"At {page.url} ({title!r})")
-        on_pickem = page.url.startswith(f"{PICKEM_BASE_URL}/pickem")
-        if on_pickem and title is not None and LOGGED_OUT_TITLE not in title:
-            break
-        if time.time() > deadline:
-            context.close()
-            raise TimeoutError(f"Login not completed within {args.timeout}s")
-        time.sleep(1)
+        deadline = time.time() + args.timeout
+        last_seen = None
+        while True:
+            # Watch the most recently opened tab, in case login opens a new one
+            page = context.pages[-1]
+            try:
+                title = page.title()
+            except Exception:
+                title = None  # Page is mid-navigation; check again next loop
+            if (page.url, title) != last_seen:
+                last_seen = (page.url, title)
+                logger.info(f"At {page.url} ({title!r})")
+            on_pickem = page.url.startswith(f"{PICKEM_BASE_URL}/pickem")
+            if on_pickem and title is not None and LOGGED_OUT_TITLE not in title:
+                break
+            if time.time() > deadline:
+                raise TimeoutError(f"Login not completed within {args.timeout}s")
+            time.sleep(1)
 
-    context.storage_state(path=args.state_path)
-    logger.info(f"Logged in as of {page.url}; saved session to {args.state_path}")
-    context.close()
+        context.storage_state(path=args.state_path)
+        logger.info(f"Logged in as of {page.url}; saved session to {args.state_path}")
+    finally:
+        context.close()

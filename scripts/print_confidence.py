@@ -1,10 +1,8 @@
 import argparse
 import sys
-from datetime import datetime
 
 import pandas as pd
 from loguru import logger
-from pytz import timezone
 
 from nfl_confidence.odds import (
     get_the_odds_json,
@@ -12,7 +10,11 @@ from nfl_confidence.odds import (
     parse_the_odds_json,
 )
 from nfl_confidence.settings import Settings
-from nfl_confidence.utils import assign_confidence, get_unused_confidence
+from nfl_confidence.utils import (
+    assign_confidence,
+    confirm_system_time,
+    get_unused_confidence,
+)
 from nfl_confidence.yahoo import (
     DEFAULT_TEAM_ID,
     add_yahoo_args,
@@ -60,12 +62,7 @@ args = parser.parse_args()
 settings = Settings(_env_file=".env")
 
 # Check the current time
-now = datetime.now(tz=timezone("US/Eastern"))
-date_str = now.strftime("%I:%M on %A, %b %d")
-correct_time = input(f"Is it curently {date_str}? (y/n) ")
-if correct_time.lower() != "y":
-    logger.error("System time is wrong. Please restart")
-    sys.exit(1)
+confirm_system_time()
 
 # Get Moneyline/Head2head odds
 the_odds_json = get_the_odds_json(

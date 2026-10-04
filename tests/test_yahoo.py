@@ -1,5 +1,6 @@
 import argparse
 import re
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -10,11 +11,13 @@ from nfl_confidence.yahoo import (
     DEFAULT_STATE_PATH,
     PICK_DTYPES,
     YAHOO_TEAM_NAMES,
+    YahooLoginError,
     add_yahoo_args,
     get_current_week,
     get_locked_picks,
     get_matchups,
     get_open_week,
+    get_page,
     get_top_picks,
     group_picks_url,
     parse_group_picks,
@@ -36,6 +39,19 @@ def test_group_picks_url():
     url = "https://football.fantasysports.yahoo.com/pickem/39345/grouppicks"
     assert group_picks_url(39345) == url
     assert group_picks_url(39345, week=5) == f"{url}?week=5"
+
+
+def test_get_page():
+    def fake_session(html):
+        response = SimpleNamespace(text=html, raise_for_status=lambda: None)
+        return SimpleNamespace(get=lambda url: response)
+
+    page = "<html><head><title>Pro Football Pick'em</title></head></html>"
+    assert get_page(fake_session(page), "url") == page
+
+    logged_out = "<html><head><title>There was a Problem | Pick'em</title></head></html>"
+    with pytest.raises(YahooLoginError, match="Re-run scripts/yahoo_login.py"):
+        get_page(fake_session(logged_out), "url")
 
 
 def test_get_open_week(group_picks_week1_html, group_picks_week4_html, monkeypatch):

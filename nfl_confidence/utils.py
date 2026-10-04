@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import sys
+from datetime import datetime
 from typing import Any, Iterable, List
 
 import gspread
@@ -8,6 +10,7 @@ import numpy as np
 import yaml
 from loguru import logger
 from pydantic import BaseModel
+from pytz import timezone
 from tenacity import after_log, before_sleep_log, retry, wait_exponential
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
@@ -24,6 +27,16 @@ def load_asset(name: str) -> Any:
     """
     with open(os.path.join(ASSETS_DIR, name), "r") as f:
         return json.load(f)
+
+
+def confirm_system_time() -> None:
+    """Ask the user to confirm the system time, which decides which games count as this
+    week's and which have started. Exits with code 1 if they say it's wrong.
+    """
+    date_str = datetime.now(tz=timezone("US/Eastern")).strftime("%I:%M on %A, %b %d")
+    if input(f"Is it currently {date_str}? (y/n) ").lower() != "y":
+        logger.error("System time is wrong. Please restart")
+        sys.exit(1)
 
 
 def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:

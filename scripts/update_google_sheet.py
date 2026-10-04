@@ -1,10 +1,9 @@
 import argparse
-from datetime import datetime
+import sys
 
 import gspread as gs
 import pandas as pd
 from loguru import logger
-from pytz import timezone
 
 from nfl_confidence.odds import (
     get_the_odds_json,
@@ -12,7 +11,11 @@ from nfl_confidence.odds import (
     parse_the_odds_json,
 )
 from nfl_confidence.settings import Settings
-from nfl_confidence.utils import get_ranks
+from nfl_confidence.utils import (
+    assign_confidence,
+    confirm_system_time,
+    get_unused_confidence,
+)
 
 parser = argparse.ArgumentParser(description="Args for computing confidence rankings")
 parser.add_argument(
@@ -78,15 +81,10 @@ else:
         "No google sheets path provided. Must pass '--secret_path' arg, set "
         "'GOOGLE_SHEETS_SECRET_PATH' environment variable, or add to .env file"
     )
-    exit()
+    sys.exit(1)
 
 # Check the current time
-now = datetime.now(tz=timezone("US/Eastern"))
-date_str = now.strftime("%I:%M on %A, %b %d")
-correct_time = input(f"\n\nIs it curently {date_str}? (y/n) ")
-if correct_time.lower() != "y":
-    logger.error("System time is wrong. Please restart")
-    exit()
+confirm_system_time()
 
 # Get spreadsheet object
 logger.info(f"Reading google sheet '{args.sheet}' using secret at {secret_path}")
@@ -158,9 +156,10 @@ if not (9 <= len(all_game_ids) <= 16):
 
 # Compute confidence ranks
 win_probs = [game.win_probability for game in games]
-confidence_ranks = get_ranks(values=win_probs, zero_indexed=False)
-max_conf = max(confidence_ranks)
-confidence_ranks += args.max_confidence - max_conf
+confidence_ranks = assign_confidence(
+    win_probs=win_probs,
+    values=get_unused_confidence(n_games=len(games), max_confidence=args.max_confidence),
+)
 
 # Create new dataframe
 new_df = pd.DataFrame(

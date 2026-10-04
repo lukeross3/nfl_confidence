@@ -1,7 +1,24 @@
 import numpy as np
 import pytest
 
-from nfl_confidence.utils import assign_confidence, get_ranks, get_unused_confidence
+from nfl_confidence.utils import (
+    assign_confidence,
+    confirm_system_time,
+    get_ranks,
+    get_unused_confidence,
+)
+
+
+def test_confirm_system_time(monkeypatch):
+    # Confirmed: carry on
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+    confirm_system_time()
+
+    # Wrong time: exit with an error code
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+    with pytest.raises(SystemExit) as exit_info:
+        confirm_system_time()
+    assert exit_info.value.code == 1
 
 
 def test_get_ranks():

@@ -55,6 +55,10 @@ PICK_DTYPES = {
 }
 
 
+class YahooLoginError(Exception):
+    """The saved Yahoo session is missing or has expired"""
+
+
 def add_yahoo_args(parser: argparse.ArgumentParser) -> None:
     """Add the --group_id and --state_path arguments every Yahoo script takes
 
@@ -115,6 +119,9 @@ def get_page(session: requests.Session, url: str) -> str:
         session (requests.Session): Session from get_session
         url (str): Page URL
 
+    Raises:
+        YahooLoginError: If Yahoo serves its logged-out page
+
     Returns:
         str: Page HTML
     """
@@ -122,7 +129,7 @@ def get_page(session: requests.Session, url: str) -> str:
     response.raise_for_status()
     title = re.search(r"<title>(.*?)</title>", response.text, re.S)
     if title is not None and LOGGED_OUT_TITLE in title.group(1):
-        raise PermissionError(
+        raise YahooLoginError(
             f"Not logged in to Yahoo when fetching {url}. Re-run scripts/yahoo_login.py"
         )
     return response.text
