@@ -9,24 +9,51 @@ from nfl_confidence.yahoo import (
     get_current_week,
     get_locked_picks,
     get_matchups,
+    get_open_week,
     get_top_picks,
     get_yahoo_team_names,
+    group_picks_url,
     parse_group_picks,
     parse_week_games,
-    pickem_url,
     select_top_picks,
 )
 
 
-def test_pickem_url():
-    assert (
-        pickem_url("39345/grouppicks")
-        == "https://football.fantasysports.yahoo.com/pickem/39345/grouppicks"
-    )
-    assert (
-        pickem_url("39345/grouppicks", year=2025)
-        == "https://football.fantasysports.yahoo.com/2025/pickem/39345/grouppicks"
-    )
+def test_group_picks_url():
+    url = "https://football.fantasysports.yahoo.com/pickem/39345/grouppicks"
+    assert group_picks_url(39345) == url
+    assert group_picks_url(39345, week=5) == f"{url}?week=5"
+
+
+def test_get_open_week(group_picks_week1_html, group_picks_week4_html, monkeypatch):
+    # Yahoo's current week is 4. The week 1 page stands in for week 5, since its games differ.
+    week_nav = '<ul><li class="selected"><a href="/pickem/39345/grouppicks?week=4">4</a></li></ul>'
+    pages = {
+        group_picks_url(39345): week_nav + group_picks_week4_html,
+        group_picks_url(39345, week=5): group_picks_week1_html,
+    }
+    requested = []
+
+    def fake_get_page(session, url):
+        requested.append(url)
+        return pages[url]
+
+    monkeypatch.setattr("nfl_confidence.yahoo.get_page", fake_get_page)
+    week4_matchups = get_matchups(parse_week_games(group_picks_week4_html, week=4))
+    week5_matchups = get_matchups(parse_week_games(group_picks_week1_html, week=5))
+
+    # The open games are in Yahoo's current week
+    week, html = get_open_week(None, 39345, open_matchups=set(week4_matchups[1:]))
+    assert week == 4
+    assert html == pages[group_picks_url(39345)]
+    assert requested == [group_picks_url(39345)]
+
+    # Yahoo hasn't rolled over yet, so the open games are in the next week
+    requested.clear()
+    week, html = get_open_week(None, 39345, open_matchups=set(week5_matchups))
+    assert week == 5
+    assert html == group_picks_week1_html
+    assert requested == [group_picks_url(39345), group_picks_url(39345, week=5)]
 
 
 def test_parse_group_picks_finished_week(group_picks_week1_html):

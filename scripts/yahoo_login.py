@@ -10,7 +10,7 @@ from nfl_confidence.yahoo import (
     DEFAULT_STATE_PATH,
     LOGGED_OUT_TITLE,
     PICKEM_BASE_URL,
-    pickem_url,
+    group_picks_url,
 )
 
 # Setup and parse script args
@@ -29,7 +29,7 @@ parser.add_argument("--timeout", type=int, default=600, help="Seconds to wait fo
 args = parser.parse_args()
 
 # Land on the group page after login, so we can tell when login succeeded
-target_url = pickem_url(f"{args.group_id}/grouppicks")
+target_url = group_picks_url(args.group_id)
 login_url = f"https://login.yahoo.com/?.done={quote(target_url, safe='')}"
 
 with sync_playwright() as p:

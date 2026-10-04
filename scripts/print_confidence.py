@@ -15,16 +15,13 @@ from nfl_confidence.settings import Settings
 from nfl_confidence.utils import assign_confidence, get_unused_confidence
 from nfl_confidence.yahoo import (
     DEFAULT_STATE_PATH,
-    get_current_week,
     get_league_picks,
     get_locked_picks,
-    get_matchups,
-    get_page,
+    get_open_week,
     get_session,
     get_top_picks,
     parse_group_picks,
     parse_week_games,
-    pickem_url,
 )
 
 # Setup and parse script args
@@ -95,17 +92,9 @@ used_confidence = []
 past_top_picks = {}
 if args.yahoo:
     session = get_session(args.state_path)
-    group_picks_url = pickem_url(f"{args.group_id}/grouppicks")
-    html = get_page(session, group_picks_url)
-    week = get_current_week(html)
-    week_games = parse_week_games(html, week)
-
-    # Yahoo may still show last week until it rolls over
     open_matchups = {frozenset((game.home_team.value, game.away_team.value)) for game in games}
-    if not open_matchups & set(get_matchups(week_games)):
-        week += 1
-        html = get_page(session, f"{group_picks_url}?week={week}")
-        week_games = parse_week_games(html, week)
+    week, html = get_open_week(session, args.group_id, open_matchups)
+    week_games = parse_week_games(html, week)
 
     # Games that already started have used up the confidence values picked on them
     locked = get_locked_picks(
@@ -137,8 +126,7 @@ if args.yahoo:
 available_confidence = get_unused_confidence(
     n_games=n_games, used=used_confidence, max_confidence=max_confidence
 )
-if args.yahoo:
-    logger.info(f"Assigning confidence values {available_confidence}")
+logger.info(f"Assigning confidence values {available_confidence}")
 win_probs = [game.win_probability for game in games]
 confidence_ranks = assign_confidence(win_probs=win_probs, values=available_confidence)
 

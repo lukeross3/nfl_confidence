@@ -2,7 +2,7 @@ import json
 import os
 import re
 import time
-from typing import Dict, FrozenSet, List, Optional, Set
+from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 import pandas as pd
 import requests
@@ -45,18 +45,19 @@ PICK_DTYPES = {
 }
 
 
-def pickem_url(path: str, year: Optional[int] = None) -> str:
-    """Build a Pro Football Pick'em URL, optionally for a past season
+def group_picks_url(group_id: int, week: Optional[int] = None) -> str:
+    """Build the URL of a Pick'em group's group picks page
 
     Args:
-        path (str): Path below /pickem, e.g. "39345/grouppicks"
-        year (Optional[int], optional): Past season to fetch. Defaults to None (current season).
+        group_id (int): Pick'em group ID
+        week (Optional[int], optional): Week to show. Defaults to None, which shows Yahoo's
+            current week.
 
     Returns:
         str: Full URL
     """
-    year_prefix = f"/{year}" if year is not None else ""
-    return f"{PICKEM_BASE_URL}{year_prefix}/pickem/{path}"
+    url = f"{PICKEM_BASE_URL}/pickem/{group_id}/grouppicks"
+    return url if week is None else f"{url}?week={week}"
 
 
 def get_session(state_path: str = DEFAULT_STATE_PATH) -> requests.Session:
@@ -271,13 +272,13 @@ def get_league_picks(
     """
     weeks = []
     for week in range(first_week, last_week + 1):
-        url = pickem_url(f"{group_id}/grouppicks") + f"?week={week}"
-        week_df = parse_group_picks(get_page(session, url), week)
+        if week > first_week:
+            time.sleep(1)  # Go easy on Yahoo
+        week_df = parse_group_picks(get_page(session, group_picks_url(group_id, week)), week)
         if week_df.empty:
             logger.info(f"No picks visible yet for week {week}, stopping")
             break
         weeks.append(week_df)
-        time.sleep(1)  # Go easy on Yahoo
     if not weeks:
         return _picks_table([])
     return pd.concat(weeks, ignore_index=True)
@@ -330,6 +331,30 @@ def get_matchups(week_games: pd.DataFrame) -> List[FrozenSet[str]]:
         frozenset((team_names[favorite], team_names[underdog]))
         for favorite, underdog in zip(week_games.favorite, week_games.underdog)
     ]
+
+
+def get_open_week(
+    session: requests.Session, group_id: int, open_matchups: Set[FrozenSet[str]]
+) -> Tuple[int, str]:
+    """Find the week holding the games that are still open, and its group picks page. Yahoo
+    keeps showing last week until it rolls over, so if its current week doesn't hold any of
+    them, use the next week.
+
+    Args:
+        session (requests.Session): Session from get_session
+        group_id (int): Pick'em group ID
+        open_matchups (Set[FrozenSet[str]]): Standardized team name pairs of the games that
+            haven't started yet
+
+    Returns:
+        Tuple[int, str]: Week number, and the HTML of its group picks page
+    """
+    html = get_page(session, group_picks_url(group_id))
+    week = get_current_week(html)
+    if not open_matchups & set(get_matchups(parse_week_games(html, week))):
+        week += 1
+        html = get_page(session, group_picks_url(group_id, week))
+    return week, html
 
 
 def get_locked_picks(
