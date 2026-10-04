@@ -7,9 +7,9 @@ from loguru import logger
 from playwright.sync_api import sync_playwright
 
 from nfl_confidence.yahoo import (
-    DEFAULT_STATE_PATH,
     LOGGED_OUT_TITLE,
     PICKEM_BASE_URL,
+    add_yahoo_args,
     group_picks_url,
 )
 
@@ -17,8 +17,7 @@ from nfl_confidence.yahoo import (
 parser = argparse.ArgumentParser(
     description="Open Chrome to log in to Yahoo and save the session cookies for scraping"
 )
-parser.add_argument("--group_id", type=int, default=39345, help="Pick'em group ID")
-parser.add_argument("--state_path", type=str, default=DEFAULT_STATE_PATH)
+add_yahoo_args(parser)
 parser.add_argument(
     "--profile_dir",
     type=str,

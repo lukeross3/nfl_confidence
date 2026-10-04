@@ -1,3 +1,4 @@
+import argparse
 import re
 
 import pandas as pd
@@ -5,18 +6,30 @@ import pytest
 
 from nfl_confidence.odds import get_valid_team_names
 from nfl_confidence.yahoo import (
+    DEFAULT_GROUP_ID,
+    DEFAULT_STATE_PATH,
     PICK_DTYPES,
+    YAHOO_TEAM_NAMES,
+    add_yahoo_args,
     get_current_week,
     get_locked_picks,
     get_matchups,
     get_open_week,
     get_top_picks,
-    get_yahoo_team_names,
     group_picks_url,
     parse_group_picks,
     parse_week_games,
     select_top_picks,
 )
+
+
+def test_add_yahoo_args():
+    parser = argparse.ArgumentParser()
+    add_yahoo_args(parser)
+    args = parser.parse_args([])
+    assert (args.group_id, args.state_path) == (DEFAULT_GROUP_ID, DEFAULT_STATE_PATH)
+    args = parser.parse_args(["--group_id", "123", "--state_path", "other.json"])
+    assert (args.group_id, args.state_path) == (123, "other.json")
 
 
 def test_group_picks_url():
@@ -131,7 +144,7 @@ def test_parse_group_picks_no_table():
 
 
 def test_yahoo_team_names_cover_all_teams():
-    assert set(get_yahoo_team_names().values()) == get_valid_team_names()
+    assert set(YAHOO_TEAM_NAMES.values()) == get_valid_team_names()
 
 
 def test_get_current_week():

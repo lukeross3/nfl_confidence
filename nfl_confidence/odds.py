@@ -1,5 +1,3 @@
-import json
-import os
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Set
@@ -10,6 +8,8 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
 
+from nfl_confidence.utils import load_asset
+
 
 def get_valid_team_names() -> Set[str]:
     """Return a set containing all valid team names
@@ -17,12 +17,7 @@ def get_valid_team_names() -> Set[str]:
     Returns:
         Set[str]: A set of all valid team names
     """
-    current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file)
-    file_path = os.path.join(current_dir, "assets", "team_names.json")
-    with open(file_path, "r") as f:
-        name_map = json.load(f)
-    return set(name_map)
+    return set(load_asset("team_names.json"))
 
 
 def convert_team_name(name: str) -> str:

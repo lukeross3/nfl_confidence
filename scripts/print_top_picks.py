@@ -1,7 +1,7 @@
 import argparse
 
 from nfl_confidence.yahoo import (
-    DEFAULT_STATE_PATH,
+    add_yahoo_args,
     get_league_picks,
     get_session,
     select_top_picks,
@@ -13,8 +13,7 @@ parser = argparse.ArgumentParser(
     "of games on bye weeks), and call out anyone who has used the same team as a top pick "
     "more than once"
 )
-parser.add_argument("--group_id", type=int, default=39345, help="Pick'em group ID")
-parser.add_argument("--state_path", type=str, default=DEFAULT_STATE_PATH)
+add_yahoo_args(parser)
 args = parser.parse_args()
 
 # Get this season's picks so far

@@ -14,7 +14,8 @@ from nfl_confidence.odds import (
 from nfl_confidence.settings import Settings
 from nfl_confidence.utils import assign_confidence, get_unused_confidence
 from nfl_confidence.yahoo import (
-    DEFAULT_STATE_PATH,
+    DEFAULT_TEAM_ID,
+    add_yahoo_args,
     get_league_picks,
     get_locked_picks,
     get_open_week,
@@ -49,9 +50,10 @@ parser.add_argument(
     help="Pull this week's games and your picks on games already started from Yahoo, and only "
     "assign the confidence values those picks haven't used",
 )
-parser.add_argument("--group_id", type=int, default=39345, help="Yahoo Pick'em group ID")
-parser.add_argument("--team_id", type=int, default=3, help="Your team ID in the Yahoo group")
-parser.add_argument("--state_path", type=str, default=DEFAULT_STATE_PATH)
+add_yahoo_args(parser)
+parser.add_argument(
+    "--team_id", type=int, default=DEFAULT_TEAM_ID, help="Your team ID in the Yahoo group"
+)
 args = parser.parse_args()
 
 # Load env and settings

@@ -4,14 +4,14 @@ from datetime import datetime
 
 from loguru import logger
 
-from nfl_confidence.yahoo import DEFAULT_STATE_PATH, get_league_picks, get_session
+from nfl_confidence.yahoo import add_yahoo_args, get_league_picks, get_session
 
 # Setup and parse script args
 now = datetime.now()
 parser = argparse.ArgumentParser(
     description="Download every league member's picks from Yahoo Pick'em group picks pages"
 )
-parser.add_argument("--group_id", type=int, default=39345, help="Pick'em group ID")
+add_yahoo_args(parser)
 parser.add_argument(
     "--season",
     type=int,
@@ -20,7 +20,6 @@ parser.add_argument(
 )
 parser.add_argument("--first_week", type=int, default=1)
 parser.add_argument("--last_week", type=int, default=18)
-parser.add_argument("--state_path", type=str, default=DEFAULT_STATE_PATH)
 parser.add_argument("--output_path", type=str, default=None)
 args = parser.parse_args()
 output_path = args.output_path or os.path.join("results", f"league_picks_{args.season}.csv")

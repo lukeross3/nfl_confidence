@@ -1,4 +1,6 @@
+import json
 import logging
+import os
 from typing import Any, Iterable, List
 
 import gspread
@@ -7,6 +9,21 @@ import yaml
 from loguru import logger
 from pydantic import BaseModel
 from tenacity import after_log, before_sleep_log, retry, wait_exponential
+
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+
+def load_asset(name: str) -> Any:
+    """Load a JSON file from the package's assets folder
+
+    Args:
+        name (str): File name, e.g. "team_names.json"
+
+    Returns:
+        Any: The parsed JSON
+    """
+    with open(os.path.join(ASSETS_DIR, name), "r") as f:
+        return json.load(f)
 
 
 def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:

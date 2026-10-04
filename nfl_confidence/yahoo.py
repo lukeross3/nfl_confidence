@@ -1,5 +1,5 @@
+import argparse
 import json
-import os
 import re
 import time
 from typing import Dict, FrozenSet, List, Optional, Set, Tuple
@@ -9,12 +9,22 @@ import requests
 from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
+from nfl_confidence.utils import load_asset
+
 PICKEM_BASE_URL = "https://football.fantasysports.yahoo.com"
 DEFAULT_STATE_PATH = "secrets/yahoo_state.json"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 )
+
+# Our league's Pick'em group and Luke's team in it. Yahoo gives a group a new ID when it's
+# renewed for a new season.
+DEFAULT_GROUP_ID = 39345
+DEFAULT_TEAM_ID = 3
+
+# Yahoo team abbreviations (e.g. "Sea") -> standardized team names (e.g. "seattle-seahawks")
+YAHOO_TEAM_NAMES: Dict[str, str] = load_asset("yahoo_team_abbreviations.json")
 
 # Yahoo serves this page title (with a 200 status) when the request isn't logged in
 LOGGED_OUT_TITLE = "There was a Problem"
@@ -43,6 +53,23 @@ PICK_DTYPES = {
     "correct": "boolean",
     "points": "Int64",
 }
+
+
+def add_yahoo_args(parser: argparse.ArgumentParser) -> None:
+    """Add the --group_id and --state_path arguments every Yahoo script takes
+
+    Args:
+        parser (argparse.ArgumentParser): The script's argument parser
+    """
+    parser.add_argument(
+        "--group_id", type=int, default=DEFAULT_GROUP_ID, help="Yahoo Pick'em group ID"
+    )
+    parser.add_argument(
+        "--state_path",
+        type=str,
+        default=DEFAULT_STATE_PATH,
+        help="Yahoo session saved by scripts/yahoo_login.py",
+    )
 
 
 def group_picks_url(group_id: int, week: Optional[int] = None) -> str:
@@ -103,18 +130,6 @@ def get_page(session: requests.Session, url: str) -> str:
 
 def _classes(cell: Tag) -> List[str]:
     return cell.get("class") or []
-
-
-def get_yahoo_team_names() -> Dict[str, str]:
-    """Map Yahoo team abbreviations (e.g. "Sea") to standardized team names
-    (e.g. "seattle-seahawks")
-
-    Returns:
-        Dict[str, str]: Yahoo abbreviation -> standardized team name
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(current_dir, "assets", "yahoo_team_abbreviations.json"), "r") as f:
-        return json.load(f)
 
 
 def get_current_week(html: str) -> int:
@@ -308,12 +323,11 @@ def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
     Returns:
         Dict[str, List[int]]: Standardized team name -> weeks it was the top pick
     """
-    team_names = get_yahoo_team_names()
     top_picks = select_top_picks(picks)
     matches = top_picks[top_picks.team_id == team_id]
     teams_picked = {}
     for pick, week in zip(matches.pick, matches.week):
-        teams_picked.setdefault(team_names[pick], []).append(int(week))
+        teams_picked.setdefault(YAHOO_TEAM_NAMES[pick], []).append(int(week))
     return teams_picked
 
 
@@ -326,9 +340,8 @@ def get_matchups(week_games: pd.DataFrame) -> List[FrozenSet[str]]:
     Returns:
         List[FrozenSet[str]]: Pair of standardized team names for each game, in order
     """
-    team_names = get_yahoo_team_names()
     return [
-        frozenset((team_names[favorite], team_names[underdog]))
+        frozenset((YAHOO_TEAM_NAMES[favorite], YAHOO_TEAM_NAMES[underdog]))
         for favorite, underdog in zip(week_games.favorite, week_games.underdog)
     ]
 
