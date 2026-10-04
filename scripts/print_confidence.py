@@ -1,6 +1,6 @@
 import argparse
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from loguru import logger
@@ -15,6 +15,7 @@ from nfl_confidence.settings import Settings
 from nfl_confidence.utils import assign_confidence, get_unused_confidence
 from nfl_confidence.yahoo import (
     DEFAULT_STATE_PATH,
+    PICK_LOCK_MINUTES,
     get_current_week,
     get_league_picks,
     get_locked_picks,
@@ -66,7 +67,7 @@ date_str = now.strftime("%I:%M on %A, %b %d")
 correct_time = input(f"Is it curently {date_str}? (y/n) ")
 if correct_time.lower() != "y":
     logger.error("System time is wrong. Please restart")
-    exit()
+    sys.exit(1)
 
 # Get Moneyline/Head2head odds
 the_odds_json = get_the_odds_json(
@@ -79,13 +80,24 @@ games = parse_the_odds_json(the_odds_json=the_odds_json)
 # Filter to only this week's games
 games = get_this_weeks_games(games=games)
 
+# Skip games whose picks have locked, which happens a few minutes before kickoff
+lock_time = datetime.now(tz=timezone("US/Eastern")) + timedelta(minutes=PICK_LOCK_MINUTES)
+locked_soon = [game for game in games if game.commence_time <= lock_time]
+if locked_soon:
+    logger.info(
+        f"Skipping {len(locked_soon)} game(s) kicking off within {PICK_LOCK_MINUTES} minutes, "
+        "since their picks have locked"
+    )
+    games = [game for game in games if game.commence_time > lock_time]
+
 # Sort games by commence time, then ID to keep order the same on subsequent runs
 games = sorted(games, key=lambda x: (x.commence_time, x.id))
 if not games:
-    raise ValueError(
-        "No open games left this week in the odds API (e.g. after Monday night's kickoff). "
-        "Rerun once next week's games are listed"
+    logger.error(
+        "No open games left this week (e.g. after Monday night's kickoff). Rerun once next "
+        "week's games are listed"
     )
+    sys.exit(1)
 
 # Find which confidence values are still available
 n_games = len(games)
@@ -145,12 +157,9 @@ confidence_ranks = assign_confidence(win_probs=win_probs, values=available_confi
 df = pd.DataFrame(
     [
         {
-            "id": game.id,
             "home_team": game.home_team.value,
             "away_team": game.away_team.value,
             "predicted_winner": game.predicted_winner.value,
-            "prob_variance": game.win_probability_variance,
-            "oddsmaker_agreement": game.oddsmaker_agreement,
             "confidence_prob": game.win_probability,
             "confidence_rank": confidence_rank,
         }

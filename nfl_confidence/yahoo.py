@@ -19,6 +19,9 @@ USER_AGENT = (
 # Yahoo serves this page title (with a 200 status) when the request isn't logged in
 LOGGED_OUT_TITLE = "There was a Problem"
 
+# The league's pick deadline: each game's pick locks this many minutes before kickoff
+PICK_LOCK_MINUTES = 5
+
 # Group picks table layout: 3 game header rows (favored, spread, underdog), a column header
 # row, then one row per member. Columns are a label, one per game, then the weekly total.
 GROUP_PICKS_TABLE_CLASS = "yspNflPickGroupPickTable"
