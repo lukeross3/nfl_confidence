@@ -26,6 +26,24 @@ N_GAME_HEADER_ROWS = 4
 WINNER_CLASS = "yspNflPickWin"
 PICK_CELL_PATTERN = re.compile(r"^(?P<team>\S+)\s*\((?P<confidence>\d+)\)$")
 
+# Columns and types of the picks table from parse_group_picks and get_league_picks. correct
+# is nullable, so mean, sum and count skip pending games.
+PICK_DTYPES = {
+    "week": "int64",
+    "team_id": "int64",
+    "team_name": "object",
+    "game": "int64",
+    "n_games": "int64",
+    "favorite": "object",
+    "underdog": "object",
+    "spread": "float64",
+    "winner": "object",
+    "pick": "object",
+    "confidence": "int64",
+    "correct": "boolean",
+    "points": "float64",
+}
+
 
 def pickem_url(path: str, year: Optional[int] = None) -> str:
     """Build a Pro Football Pick'em URL, optionally for a past season
@@ -161,10 +179,15 @@ def parse_week_games(html: str, week: int) -> pd.DataFrame:
     return games
 
 
+def _picks_table(records: List[Dict]) -> pd.DataFrame:
+    # Fixed columns and types, so an empty table matches a real one
+    return pd.DataFrame(records, columns=list(PICK_DTYPES)).astype(PICK_DTYPES)
+
+
 def parse_group_picks(html: str, week: int) -> pd.DataFrame:
     """Parse a group picks page into one row per (member, game). Skips picks Yahoo hides
     (other members' picks on games that haven't locked; your own row shows yours) and picks
-    not made yet. Pending games have correct/points of None.
+    not made yet. Pending games have correct and points missing.
 
     Args:
         html (str): HTML of /pickem/{group_id}/grouppicks?week={week}
@@ -175,9 +198,8 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
             the weekly total Yahoo shows
 
     Returns:
-        pd.DataFrame: Columns week, team_id, team_name, game, n_games, favorite, underdog,
-            spread, winner, pick, confidence, correct, points. Yahoo's confidence values for
-            a week run from 1 to n_games, the number of games that week.
+        pd.DataFrame: Columns and types from PICK_DTYPES. Yahoo's confidence values for a
+            week run from 1 to n_games, the number of games that week.
     """
     rows = _get_table_rows(html, week)
     games = _parse_games(rows)
@@ -228,7 +250,7 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
                 f"but Yahoo shows {yahoo_total}"
             )
 
-    return pd.DataFrame(records)
+    return _picks_table(records)
 
 
 def get_league_picks(
@@ -257,7 +279,7 @@ def get_league_picks(
         weeks.append(week_df)
         time.sleep(1)  # Go easy on Yahoo
     if not weeks:
-        return pd.DataFrame()
+        return _picks_table([])
     return pd.concat(weeks, ignore_index=True)
 
 
@@ -273,8 +295,6 @@ def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
     Returns:
         Dict[str, List[int]]: Standardized team name -> weeks it was the top pick
     """
-    if picks.empty:
-        return {}
     team_names = get_yahoo_team_names()
     matches = picks[(picks.team_id == team_id) & (picks.confidence == picks.n_games)]
     teams_picked = {}
@@ -332,7 +352,7 @@ def get_locked_picks(
 
     # Yahoo shows other members' picks once a game locks, and the winner once it's final.
     # The member's own row isn't used, since it may show their picks before games lock.
-    other_picks = picks.loc[picks.team_id != team_id, "game"] if not picks.empty else []
+    other_picks = picks.loc[picks.team_id != team_id, "game"]
     started = week_games.game.isin(other_picks) | week_games.winner.notna()
     is_open = pd.Series(matchups, index=week_games.index).isin(open_matchups)
     missing = week_games[~is_open & ~started]
@@ -346,9 +366,5 @@ def get_locked_picks(
         )
 
     locked = week_games[~is_open]
-    pick_columns = ["game", "pick", "confidence", "correct"]
-    if picks.empty:
-        member_picks = pd.DataFrame(columns=pick_columns)
-    else:
-        member_picks = picks.loc[picks.team_id == team_id, pick_columns]
+    member_picks = picks.loc[picks.team_id == team_id, ["game", "pick", "confidence", "correct"]]
     return locked.merge(member_picks, on="game", how="left")

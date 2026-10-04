@@ -1,8 +1,11 @@
+import re
+
 import pandas as pd
 import pytest
 
 from nfl_confidence.odds import get_valid_team_names
 from nfl_confidence.yahoo import (
+    PICK_DTYPES,
     get_current_week,
     get_locked_picks,
     get_matchups,
@@ -49,6 +52,25 @@ def test_parse_group_picks_finished_week(group_picks_week1_html):
     assert (first.favorite, first.underdog, first.spread) == ("Sea", "NE", 3.5)
     assert (first.winner, first.pick, first.confidence) == ("Sea", "Sea", 8)
     assert first.correct and first.points == 8
+
+
+def test_parse_group_picks_table_shape(group_picks_week4_live_html):
+    picks = parse_group_picks(group_picks_week4_live_html, week=4)
+    assert picks.dtypes.astype(str).to_dict() == PICK_DTYPES
+
+    # Pending games have correct missing, so mean and count only cover finished games
+    member_3 = picks[picks.team_id == 3]
+    assert len(member_3) == 16
+    assert member_3.correct.count() == 1
+    assert member_3.correct.mean() == 0
+
+    # A week with no picks visible yet has the same columns and types, so tests using an
+    # empty slice of a real table cover it
+    hidden = re.sub(r">\w+<br/>\(\d+\)<", ">--<", group_picks_week4_live_html)
+    hidden = re.sub(r"<strong>\d+</strong>", "<strong>0</strong>", hidden)
+    empty = parse_group_picks(hidden, week=4)
+    assert empty.empty
+    assert empty.dtypes.equals(picks.dtypes)
 
 
 def test_parse_group_picks_in_progress_week(group_picks_week4_html):
@@ -119,6 +141,13 @@ def test_get_locked_picks(group_picks_week4_html):
     # Nothing started yet, and no picks visible
     locked = get_locked_picks(week_games, picks.iloc[0:0], team_id=3, open_matchups=set(matchups))
     assert locked.empty
+
+    # A finished game, but no picks visible: the game is locked, with no pick from the member
+    locked = get_locked_picks(
+        week_games, picks.iloc[0:0], team_id=3, open_matchups=set(matchups[1:])
+    )
+    assert locked.game.tolist() == [1]
+    assert locked.pick.isna().all()
 
     # An open game from a different week
     with pytest.raises(ValueError, match="not in this Yahoo week"):
@@ -200,4 +229,5 @@ def test_get_top_picks(group_picks_week1_html):
         "los-angeles-chargers": [1, 5]
     }
 
-    assert get_top_picks(pd.DataFrame(), team_id=3) == {}
+    # No picks visible yet, e.g. the past weeks before week 1
+    assert get_top_picks(week1.iloc[0:0], team_id=3) == {}

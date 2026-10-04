@@ -32,10 +32,9 @@ table.index = [
     f"{week} (top={n_games[week]})" if n_games[week] < 16 else week for week in table.index
 ]
 
-# Season record on top picks
-finished = top_picks[top_picks.correct.notna()].astype({"correct": bool})
-wins = finished.groupby("team_name").correct.sum()
-losses = finished.groupby("team_name").correct.size() - wins
+# Season record on top picks. Pending games have correct missing, which sum and count skip.
+wins = top_picks.groupby("team_name").correct.sum()
+losses = top_picks.groupby("team_name").correct.count() - wins
 table.loc["W-L"] = [f"{wins.get(name, 0)}-{losses.get(name, 0)}" for name in table.columns]
 
 print("Top picks by week (? = hidden until the game kicks off)\n")

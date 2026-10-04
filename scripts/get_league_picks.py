@@ -31,11 +31,11 @@ picks = get_league_picks(session, args.group_id, args.first_week, args.last_week
 picks.to_csv(output_path, index=False)
 logger.info(f"Wrote {len(picks)} picks over {picks.week.nunique()} weeks to {output_path}")
 
-# Summarize finished games: points and accuracy by member
-finished = picks[picks.correct.notna()].astype({"correct": bool})
-summary = finished.groupby("team_name").agg(
+# Summarize finished games: points and accuracy by member. Pending games have correct missing,
+# which mean and count skip.
+summary = picks.groupby("team_name").agg(
     points=("points", "sum"),
     accuracy=("correct", "mean"),
-    games=("correct", "size"),
+    games=("correct", "count"),
 )
 print(summary.sort_values("points", ascending=False).round(3).to_string())
