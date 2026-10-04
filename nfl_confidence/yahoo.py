@@ -1,0 +1,332 @@
+import json
+import os
+import re
+import time
+from typing import Dict, FrozenSet, List, Optional, Set
+
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup, Tag
+from loguru import logger
+
+PICKEM_BASE_URL = "https://football.fantasysports.yahoo.com"
+DEFAULT_STATE_PATH = "secrets/yahoo_state.json"
+USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
+
+# Yahoo serves this page title (with a 200 status) when the request isn't logged in
+LOGGED_OUT_TITLE = "There was a Problem"
+
+# Group picks table layout: 3 game header rows (favored, spread, underdog), a column header
+# row, then one row per member. Columns are a label, one per game, then the weekly total.
+GROUP_PICKS_TABLE_CLASS = "yspNflPickGroupPickTable"
+N_GAME_HEADER_ROWS = 4
+WINNER_CLASS = "yspNflPickWin"
+PICK_CELL_PATTERN = re.compile(r"^(?P<team>\S+)\s*\((?P<confidence>\d+)\)$")
+
+
+def pickem_url(path: str, year: Optional[int] = None) -> str:
+    """Build a Pro Football Pick'em URL, optionally for a past season
+
+    Args:
+        path (str): Path below /pickem, e.g. "39345/grouppicks"
+        year (Optional[int], optional): Past season to fetch. Defaults to None (current season).
+
+    Returns:
+        str: Full URL
+    """
+    year_prefix = f"/{year}" if year is not None else ""
+    return f"{PICKEM_BASE_URL}{year_prefix}/pickem/{path}"
+
+
+def get_session(state_path: str = DEFAULT_STATE_PATH) -> requests.Session:
+    """Build a requests session carrying the Yahoo cookies saved by scripts/yahoo_login.py
+
+    Args:
+        state_path (str, optional): Path to the Playwright storage state JSON.
+            Defaults to DEFAULT_STATE_PATH.
+
+    Returns:
+        requests.Session: Session with Yahoo login cookies set
+    """
+    with open(state_path, "r") as f:
+        state = json.load(f)
+    session = requests.Session()
+    session.headers["User-Agent"] = USER_AGENT
+    for cookie in state["cookies"]:
+        session.cookies.set(
+            cookie["name"], cookie["value"], domain=cookie["domain"], path=cookie["path"]
+        )
+    return session
+
+
+def get_page(session: requests.Session, url: str) -> str:
+    """GET a pickem page, raising if the session is no longer logged in
+
+    Args:
+        session (requests.Session): Session from get_session
+        url (str): Page URL
+
+    Returns:
+        str: Page HTML
+    """
+    response = session.get(url)
+    response.raise_for_status()
+    title = re.search(r"<title>(.*?)</title>", response.text, re.S)
+    if title is not None and LOGGED_OUT_TITLE in title.group(1):
+        raise PermissionError(
+            f"Not logged in to Yahoo when fetching {url}. Re-run scripts/yahoo_login.py"
+        )
+    return response.text
+
+
+def _classes(cell: Tag) -> List[str]:
+    return cell.get("class") or []
+
+
+def get_yahoo_team_names() -> Dict[str, str]:
+    """Map Yahoo team abbreviations (e.g. "Sea") to standardized team names
+    (e.g. "seattle-seahawks")
+
+    Returns:
+        Dict[str, str]: Yahoo abbreviation -> standardized team name
+    """
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(current_dir, "assets", "yahoo_team_abbreviations.json"), "r") as f:
+        return json.load(f)
+
+
+def get_current_week(html: str) -> int:
+    """Get the week Yahoo selects by default on a group picks page
+
+    Args:
+        html (str): HTML of /pickem/{group_id}/grouppicks, without a week param
+
+    Raises:
+        ValueError: If the selected week can't be found
+
+    Returns:
+        int: Current week number
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    selected = soup.select_one('li.selected a[href*="grouppicks?week="]')
+    if selected is None:
+        raise ValueError("Couldn't find the selected week on the group picks page")
+    return int(re.search(r"week=(\d+)", selected["href"]).group(1))
+
+
+def _get_table_rows(html: str, week: int) -> List[Tag]:
+    table = BeautifulSoup(html, "html.parser").find("table", class_=GROUP_PICKS_TABLE_CLASS)
+    if table is None:
+        raise ValueError(f"No group picks table found for week {week}")
+    return table.find_all("tr")
+
+
+def _parse_games(rows: List[Tag]) -> List[Dict]:
+    favored, spreads, underdogs = [row.find_all("td")[1:-1] for row in rows[:3]]
+    games = []
+    for favorite_cell, spread_cell, underdog_cell in zip(favored, spreads, underdogs):
+        winner = None
+        if WINNER_CLASS in _classes(favorite_cell):
+            winner = favorite_cell.get_text(strip=True)
+        elif WINNER_CLASS in _classes(underdog_cell):
+            winner = underdog_cell.get_text(strip=True)
+        spread = spread_cell.get_text(strip=True)
+        games.append(
+            {
+                "favorite": favorite_cell.get_text(strip=True),
+                "underdog": underdog_cell.get_text(strip=True),
+                # Yahoo shows "--" for games without a line yet
+                "spread": float(spread) if re.fullmatch(r"[\d.]+", spread) else None,
+                "winner": winner,
+            }
+        )
+    return games
+
+
+def parse_week_games(html: str, week: int) -> pd.DataFrame:
+    """Parse the games on a group picks page, including games whose picks are still hidden
+
+    Args:
+        html (str): HTML of /pickem/{group_id}/grouppicks?week={week}
+        week (int): Week number the page is for
+
+    Returns:
+        pd.DataFrame: Columns game, favorite, underdog, spread, winner (None until final)
+    """
+    games = pd.DataFrame(_parse_games(_get_table_rows(html, week)))
+    games.insert(0, "game", range(1, len(games) + 1))
+    return games
+
+
+def parse_group_picks(html: str, week: int) -> pd.DataFrame:
+    """Parse a group picks page into one row per (member, game). Picks Yahoo hides (games
+    not yet locked) are skipped, and pending games have correct/points of None.
+
+    Args:
+        html (str): HTML of /pickem/{group_id}/grouppicks?week={week}
+        week (int): Week number the page is for
+
+    Raises:
+        ValueError: If the picks table is missing, or a member's points don't add up to
+            the weekly total Yahoo shows
+
+    Returns:
+        pd.DataFrame: Columns week, team_id, team_name, game, favorite, underdog, spread,
+            winner, pick, confidence, correct, points
+    """
+    rows = _get_table_rows(html, week)
+    games = _parse_games(rows)
+
+    # One row per member, with a pick per game and the weekly total at the end
+    records = []
+    for row in rows[N_GAME_HEADER_ROWS:]:
+        cells = row.find_all("td")
+        member_link = cells[0].find("a")
+        team_id = int(member_link["href"].rstrip("/").split("/")[-1])
+        team_name = member_link.get_text(strip=True)
+        yahoo_total = int(cells[-1].get_text(strip=True) or 0)
+
+        member_points = 0
+        for game_index, (cell, game) in enumerate(zip(cells[1:-1], games), start=1):
+            text = cell.get_text(" ", strip=True)
+            if text in ("", "--"):
+                continue  # Pick hidden until the game locks, or not made yet
+            match = PICK_CELL_PATTERN.match(text)
+            if match is None:
+                raise ValueError(f"Unrecognized pick cell {text!r} in week {week}")
+            confidence = int(match.group("confidence"))
+            correct = None
+            if "correct" in _classes(cell):
+                correct = True
+            elif "incorrect" in _classes(cell):
+                correct = False
+            points = None if correct is None else confidence * correct
+            member_points += points or 0
+            records.append(
+                {
+                    "week": week,
+                    "team_id": team_id,
+                    "team_name": team_name,
+                    "game": game_index,
+                    **game,
+                    "pick": match.group("team"),
+                    "confidence": confidence,
+                    "correct": correct,
+                    "points": points,
+                }
+            )
+
+        if member_points != yahoo_total:
+            raise ValueError(
+                f"Week {week} points for {team_name!r} sum to {member_points}, "
+                f"but Yahoo shows {yahoo_total}"
+            )
+
+    return pd.DataFrame(records)
+
+
+def get_league_picks(
+    session: requests.Session, group_id: int, first_week: int = 1, last_week: int = 18
+) -> pd.DataFrame:
+    """Fetch and parse every week's group picks, stopping at the first week with no
+    visible picks
+
+    Args:
+        session (requests.Session): Session from get_session
+        group_id (int): Pick'em group ID
+        first_week (int, optional): First week to fetch. Defaults to 1.
+        last_week (int, optional): Last week to fetch. Defaults to 18.
+
+    Returns:
+        pd.DataFrame: All weeks' picks, with the columns from parse_group_picks. Empty if no
+            picks are visible.
+    """
+    weeks = []
+    for week in range(first_week, last_week + 1):
+        url = pickem_url(f"{group_id}/grouppicks") + f"?week={week}"
+        week_df = parse_group_picks(get_page(session, url), week)
+        if week_df.empty:
+            logger.info(f"No picks visible yet for week {week}, stopping")
+            break
+        weeks.append(week_df)
+        time.sleep(1)  # Go easy on Yahoo
+    if not weeks:
+        return pd.DataFrame()
+    return pd.concat(weeks, ignore_index=True)
+
+
+def get_teams_picked_at(picks: pd.DataFrame, team_id: int, confidence: int) -> Dict[str, List[int]]:
+    """Get the teams a member has picked at a given confidence value, e.g. to avoid repeat 16s
+
+    Args:
+        picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
+        team_id (int): Member whose picks to check
+        confidence (int): Confidence value to check
+
+    Returns:
+        Dict[str, List[int]]: Standardized team name -> weeks it was picked at that value
+    """
+    if picks.empty:
+        return {}
+    team_names = get_yahoo_team_names()
+    matches = picks[(picks.team_id == team_id) & (picks.confidence == confidence)]
+    teams_picked = {}
+    for pick, week in zip(matches.pick, matches.week):
+        teams_picked.setdefault(team_names[pick], []).append(int(week))
+    return teams_picked
+
+
+def get_matchups(week_games: pd.DataFrame) -> List[FrozenSet[str]]:
+    """Get each game's pair of standardized team names, e.g. to match against the odds API
+
+    Args:
+        week_games (pd.DataFrame): Games from parse_week_games
+
+    Returns:
+        List[FrozenSet[str]]: Pair of standardized team names for each game, in order
+    """
+    team_names = get_yahoo_team_names()
+    return [
+        frozenset((team_names[favorite], team_names[underdog]))
+        for favorite, underdog in zip(week_games.favorite, week_games.underdog)
+    ]
+
+
+def get_locked_picks(
+    week_games: pd.DataFrame,
+    picks: pd.DataFrame,
+    team_id: int,
+    open_matchups: Set[FrozenSet[str]],
+) -> pd.DataFrame:
+    """Find the week's games that can no longer be picked, along with one member's picks on
+    them
+
+    Args:
+        week_games (pd.DataFrame): Games from parse_week_games
+        picks (pd.DataFrame): Picks from parse_group_picks for the same week
+        team_id (int): Member whose picks to return
+        open_matchups (Set[FrozenSet[str]]): Standardized team name pairs of the games that
+            haven't started yet
+
+    Raises:
+        ValueError: If an open matchup isn't one of the week's games
+
+    Returns:
+        pd.DataFrame: Locked games, with columns from parse_week_games plus the member's pick,
+            confidence, and correct (NaN where the member has no visible pick)
+    """
+    matchups = get_matchups(week_games)
+    unknown = open_matchups - set(matchups)
+    if unknown:
+        raise ValueError(f"Games not in this Yahoo week: {[sorted(m) for m in unknown]}")
+
+    locked = week_games[[matchup not in open_matchups for matchup in matchups]]
+    pick_columns = ["game", "pick", "confidence", "correct"]
+    if picks.empty:
+        member_picks = pd.DataFrame(columns=pick_columns)
+    else:
+        member_picks = picks.loc[picks.team_id == team_id, pick_columns]
+    return locked.merge(member_picks, on="game", how="left")

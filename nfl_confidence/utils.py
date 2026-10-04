@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List
+from typing import Any, Iterable, List
 
 import gspread
 import numpy as np
@@ -23,6 +23,45 @@ def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:
     if not zero_indexed:
         offset = 1
     return offset + np.argsort(np.argsort(values))
+
+
+def get_unused_confidence(
+    n_games: int, used: Iterable[int] = (), max_confidence: int = 16
+) -> List[int]:
+    """Get the confidence values still available for a week. A week with n_games games uses
+    values (max_confidence - n_games + 1) through max_confidence.
+
+    Args:
+        n_games (int): Total number of games in the week, including ones already played
+        used (Iterable[int], optional): Values already used on locked games. Defaults to ().
+        max_confidence (int, optional): Highest confidence value. Defaults to 16.
+
+    Returns:
+        List[int]: Unused values, ascending
+    """
+    all_values = range(max_confidence - n_games + 1, max_confidence + 1)
+    return sorted(set(all_values) - set(used))
+
+
+def assign_confidence(win_probs: List[float], values: List[int]) -> List[int]:
+    """Greedily assign confidence values to games, highest values to the most likely winners.
+    If there are more values than games, the lowest values go unused.
+
+    Args:
+        win_probs (List[float]): Predicted winner's win probability for each game
+        values (List[int]): Confidence values available to assign
+
+    Raises:
+        ValueError: If there are fewer values than games
+
+    Returns:
+        List[int]: Confidence value for each game, in the same order as win_probs
+    """
+    if len(values) < len(win_probs):
+        raise ValueError(f"{len(win_probs)} games but only {len(values)} confidence values left")
+    n_unused = len(values) - len(win_probs)
+    top_values = sorted(values)[n_unused:]
+    return [top_values[rank - 1] for rank in get_ranks(values=win_probs)]
 
 
 def read_config(config_path: str, config_class: BaseModel) -> BaseModel:
