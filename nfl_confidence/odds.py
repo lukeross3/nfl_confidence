@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 import requests
+from loguru import logger
 from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
@@ -176,17 +177,21 @@ class GameOdds(BaseModel, extra="allow"):
         return add_timezone(date_str=value)
 
 
-def get_the_odds_json(api_key: str, odds_format: str = "american") -> List[Dict]:
+def get_the_odds_json(
+    api_key: str, odds_format: str = "american", verbose: bool = True
+) -> List[Dict]:
     """Make request to the-odds API for bookmaker odds
 
     Args:
         api_key (str): The-odds API key
         odds_format (str, optional): Format for odds, one of "american" or "decimal" All downstream
         functions require "american" format. Defaults to "american".
+        verbose (bool, optional): Whether or not to log the API usage/limits. Defaults to True
 
     Returns:
         List[Dict]: The-odds response JSON
     """
+    # Send the request
     url = "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds/"
     params = {
         "regions": "us",
@@ -196,6 +201,18 @@ def get_the_odds_json(api_key: str, odds_format: str = "american") -> List[Dict]
     }
     resp = requests.get(url, params)
     resp.raise_for_status()
+
+    # Log API quota from headers
+    if verbose:
+        requests_used = resp.headers["x-requests-used"]
+        requests_remaining = resp.headers["x-requests-remaining"]
+        used_by_last_call = resp.headers["x-requests-last"]
+        logger.info(
+            f"Hit 'odds' endpoint - {requests_used} requests used, {requests_remaining} "
+            f"remaining, {used_by_last_call} used by last call"
+        )
+
+    # Return the JSON response
     return resp.json()
 
 
