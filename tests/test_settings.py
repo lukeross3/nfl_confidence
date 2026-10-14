@@ -1,7 +1,7 @@
 import os
 
 import pytest
-from pydantic_core import ValidationError
+from pydantic import ValidationError
 
 from nfl_confidence.settings import Settings
 

@@ -1,22 +1,25 @@
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Set
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import requests
 from loguru import logger
 from pydantic import BaseModel, Field, computed_field, field_validator
-from pytz import timezone
-from typing_extensions import Annotated
 
 from nfl_confidence.utils import load_asset
 
+# Default bounds for filter_games_by_date
+EARLIEST = datetime.min.replace(tzinfo=UTC)
+LATEST = datetime.max.replace(tzinfo=UTC)
 
-def get_valid_team_names() -> Set[str]:
+
+def get_valid_team_names() -> set[str]:
     """Return a set containing all valid team names
 
     Returns:
-        Set[str]: A set of all valid team names
+        set[str]: A set of all valid team names
     """
     return set(load_asset("team_names.json"))
 
@@ -46,10 +49,6 @@ def add_timezone(date_str: str) -> str:
 
 
 # Create an enum of valid team names
-class StrEnum(str, Enum):
-    pass
-
-
 TeamNameEnum = StrEnum("TeamNameEnum", [(name, name) for name in get_valid_team_names()])
 HeadToHeadEnum = StrEnum("HeadToHeadEnum", [("h2h", "h2h")])
 
@@ -72,13 +71,13 @@ class Outcome(BaseModel, extra="allow"):
 class HeadToHeadOdds(BaseModel, extra="allow"):
     key: HeadToHeadEnum
     last_update: datetime
-    outcomes: Annotated[List[Outcome], Field(min_length=2, max_length=2)]
+    outcomes: Annotated[list[Outcome], Field(min_length=2, max_length=2)]
 
 
 class BookMakerOdds(BaseModel, extra="allow"):
     title: str
     last_update: datetime
-    markets: Annotated[List[HeadToHeadOdds], Field(min_length=1, max_length=1)]
+    markets: Annotated[list[HeadToHeadOdds], Field(min_length=1, max_length=1)]
 
     @computed_field
     @property
@@ -89,7 +88,7 @@ class BookMakerOdds(BaseModel, extra="allow"):
 
     @computed_field
     @property
-    def predicted_winner(self) -> Optional[TeamNameEnum]:
+    def predicted_winner(self) -> TeamNameEnum | None:
         raw_probs = [outcome.raw_win_probability for outcome in self.markets[0].outcomes]
 
         # In case of tie, return None
@@ -106,7 +105,7 @@ class GameOdds(BaseModel, extra="allow"):
     home_team: TeamNameEnum
     away_team: TeamNameEnum
     commence_time: datetime
-    bookmakers: List[BookMakerOdds]
+    bookmakers: list[BookMakerOdds]
 
     @computed_field
     @property
@@ -179,7 +178,7 @@ class GameOdds(BaseModel, extra="allow"):
 
 def get_the_odds_json(
     api_key: str, odds_format: str = "american", verbose: bool = True
-) -> List[Dict]:
+) -> list[dict]:
     """Make request to the-odds API for bookmaker odds
 
     Args:
@@ -189,7 +188,7 @@ def get_the_odds_json(
         verbose (bool, optional): Whether or not to log the API usage/limits. Defaults to True
 
     Returns:
-        List[Dict]: The-odds response JSON
+        list[dict]: The-odds response JSON
     """
     # Send the request
     url = "https://api.the-odds-api.com/v4/sports/americanfootball_nfl/odds/"
@@ -216,27 +215,27 @@ def get_the_odds_json(
     return resp.json()
 
 
-def parse_the_odds_json(the_odds_json: List[Dict]) -> List[GameOdds]:
+def parse_the_odds_json(the_odds_json: list[dict]) -> list[GameOdds]:
     """Parse the-odds JSON response into a list of GameOdds objects
 
     Args:
-        the_odds_json (List[Dict]): the-odds API response
+        the_odds_json (list[dict]): the-odds API response
 
     Returns:
-        List[GameOdds]: the-odds API response parsed into a list of GameOdds objects
+        list[GameOdds]: the-odds API response parsed into a list of GameOdds objects
     """
     return [GameOdds(**game) for game in the_odds_json]
 
 
 def filter_games_by_date(
-    games: List[GameOdds],
-    after: datetime = datetime.min.replace(tzinfo=timezone("UTC")),
-    before: datetime = datetime.max.replace(tzinfo=timezone("UTC")),
-) -> List[GameOdds]:
+    games: list[GameOdds],
+    after: datetime = EARLIEST,
+    before: datetime = LATEST,
+) -> list[GameOdds]:
     """Filter the list of games down to only those with a commence_time between the given range.
 
     Args:
-        games (List[GameOdds]): List of GameOdds objects
+        games (list[GameOdds]): List of GameOdds objects
         after (datetime, optional): Keep only games with commence_time strictly greater than after.
             Defaults to datetime.min in UTC. Like commence_time, it needs a timezone, since
             Python can't compare datetimes with and without one.
@@ -244,23 +243,23 @@ def filter_games_by_date(
             before. Defaults to datetime.max in UTC.
 
     Returns:
-        List[GameOdds]: Filter game list
+        list[GameOdds]: Filter game list
     """
     return [game for game in games if after < game.commence_time < before]
 
 
-def get_this_weeks_games(games: List[GameOdds]) -> List[GameOdds]:
+def get_this_weeks_games(games: list[GameOdds]) -> list[GameOdds]:
     """Filter games list to only those between now and the coming Tuesday (since Monday Night
     Football is the last game of the week)
 
     Args:
-        games (List[GameOdds]): List of games
+        games (list[GameOdds]): List of games
 
     Returns:
-        List[GameOdds]: Filtered list of games
+        list[GameOdds]: Filtered list of games
     """
     # Compute the number of days until Tuesday
-    now = datetime.now(tz=timezone("US/Eastern"))
+    now = datetime.now(tz=ZoneInfo("America/New_York"))
     today = now.weekday()
     tuesday = 1  # Tuesday has int value 1 in datetime
     days_til_tuesday = (tuesday - today) % 7

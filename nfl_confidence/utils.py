@@ -2,15 +2,16 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Iterable, List
+from typing import Any
+from zoneinfo import ZoneInfo
 
 import gspread
 import numpy as np
 import yaml
 from loguru import logger
 from pydantic import BaseModel
-from pytz import timezone
 from tenacity import after_log, before_sleep_log, retry, wait_exponential
 
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
@@ -25,7 +26,7 @@ def load_asset(name: str) -> Any:
     Returns:
         Any: The parsed JSON
     """
-    with open(os.path.join(ASSETS_DIR, name), "r") as f:
+    with open(os.path.join(ASSETS_DIR, name)) as f:
         return json.load(f)
 
 
@@ -33,21 +34,21 @@ def confirm_system_time() -> None:
     """Ask the user to confirm the system time, which decides which games count as this
     week's and which have started. Exits with code 1 if they say it's wrong.
     """
-    date_str = datetime.now(tz=timezone("US/Eastern")).strftime("%I:%M on %A, %b %d")
+    date_str = datetime.now(tz=ZoneInfo("America/New_York")).strftime("%I:%M on %A, %b %d")
     if input(f"Is it currently {date_str}? (y/n) ").lower() != "y":
         logger.error("System time is wrong. Please restart")
         sys.exit(1)
 
 
-def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:
+def get_ranks(values: list[float], zero_indexed: bool = False) -> list[int]:
     """Generate a ranking of the input values. E.g. [3, 7, 9, 1] -> [2, 3, 4, 1]
 
     Args:
-        values (List[float]): [description]
+        values (list[float]): [description]
         zero_indexed (bool, optional): [description]. Defaults to False.
 
     Returns:
-        List[int]: [description]
+        list[int]: [description]
     """
     offset = 0
     if not zero_indexed:
@@ -57,7 +58,7 @@ def get_ranks(values: List[float], zero_indexed: bool = False) -> List[int]:
 
 def get_unused_confidence(
     n_games: int, used: Iterable[int] = (), max_confidence: int = 16
-) -> List[int]:
+) -> list[int]:
     """Get the confidence values still available for a week. A week with n_games games uses
     values (max_confidence - n_games + 1) through max_confidence.
 
@@ -67,25 +68,25 @@ def get_unused_confidence(
         max_confidence (int, optional): Highest confidence value. Defaults to 16.
 
     Returns:
-        List[int]: Unused values, ascending
+        list[int]: Unused values, ascending
     """
     all_values = range(max_confidence - n_games + 1, max_confidence + 1)
     return sorted(set(all_values) - set(used))
 
 
-def assign_confidence(win_probs: List[float], values: List[int]) -> List[int]:
+def assign_confidence(win_probs: list[float], values: list[int]) -> list[int]:
     """Greedily assign confidence values to games, highest values to the most likely winners.
     If there are more values than games, the lowest values go unused.
 
     Args:
-        win_probs (List[float]): Predicted winner's win probability for each game
-        values (List[int]): Confidence values available to assign
+        win_probs (list[float]): Predicted winner's win probability for each game
+        values (list[int]): Confidence values available to assign
 
     Raises:
         ValueError: If there are fewer values than games
 
     Returns:
-        List[int]: Confidence value for each game, in the same order as win_probs
+        list[int]: Confidence value for each game, in the same order as win_probs
     """
     if len(values) < len(win_probs):
         raise ValueError(f"{len(win_probs)} games but only {len(values)} confidence values left")
@@ -104,7 +105,7 @@ def read_config(config_path: str, config_class: BaseModel) -> BaseModel:
     Returns:
         BaseModel: Instance of the config class with values from config path
     """
-    with open(config_path, "r") as f:
+    with open(config_path) as f:
         config_dict = yaml.safe_load(f)
     return config_class(**config_dict)
 

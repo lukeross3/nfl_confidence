@@ -2,7 +2,6 @@ import argparse
 import json
 import re
 import time
-from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 
 import pandas as pd
 import requests
@@ -24,7 +23,7 @@ DEFAULT_GROUP_ID = 39345
 DEFAULT_TEAM_ID = 3
 
 # Yahoo team abbreviations (e.g. "Sea") -> standardized team names (e.g. "seattle-seahawks")
-YAHOO_TEAM_NAMES: Dict[str, str] = load_asset("yahoo_team_abbreviations.json")
+YAHOO_TEAM_NAMES: dict[str, str] = load_asset("yahoo_team_abbreviations.json")
 
 # Yahoo serves this page title (with a 200 status) when the request isn't logged in
 LOGGED_OUT_TITLE = "There was a Problem"
@@ -76,12 +75,12 @@ def add_yahoo_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def group_picks_url(group_id: int, week: Optional[int] = None) -> str:
+def group_picks_url(group_id: int, week: int | None = None) -> str:
     """Build the URL of a Pick'em group's group picks page
 
     Args:
         group_id (int): Pick'em group ID
-        week (Optional[int], optional): Week to show. Defaults to None, which shows Yahoo's
+        week (int | None, optional): Week to show. Defaults to None, which shows Yahoo's
             current week.
 
     Returns:
@@ -101,7 +100,7 @@ def get_session(state_path: str = DEFAULT_STATE_PATH) -> requests.Session:
     Returns:
         requests.Session: Session with Yahoo login cookies set
     """
-    with open(state_path, "r") as f:
+    with open(state_path) as f:
         state = json.load(f)
     session = requests.Session()
     session.headers["User-Agent"] = USER_AGENT
@@ -135,7 +134,7 @@ def get_page(session: requests.Session, url: str) -> str:
     return response.text
 
 
-def _classes(cell: Tag) -> List[str]:
+def _classes(cell: Tag) -> list[str]:
     return cell.get("class") or []
 
 
@@ -158,17 +157,17 @@ def get_current_week(html: str) -> int:
     return int(re.search(r"week=(\d+)", selected["href"]).group(1))
 
 
-def _get_table_rows(html: str, week: int) -> List[Tag]:
+def _get_table_rows(html: str, week: int) -> list[Tag]:
     table = BeautifulSoup(html, "html.parser").find("table", class_=GROUP_PICKS_TABLE_CLASS)
     if table is None:
         raise ValueError(f"No group picks table found for week {week}")
     return table.find_all("tr")
 
 
-def _parse_games(rows: List[Tag]) -> List[Dict]:
+def _parse_games(rows: list[Tag]) -> list[dict]:
     favored, spreads, underdogs = [row.find_all("td")[1:-1] for row in rows[:3]]
     games = []
-    for favorite_cell, spread_cell, underdog_cell in zip(favored, spreads, underdogs):
+    for favorite_cell, spread_cell, underdog_cell in zip(favored, spreads, underdogs, strict=True):
         winner = None
         if WINNER_CLASS in _classes(favorite_cell):
             winner = favorite_cell.get_text(strip=True)
@@ -202,7 +201,7 @@ def parse_week_games(html: str, week: int) -> pd.DataFrame:
     return games
 
 
-def _picks_table(records: List[Dict]) -> pd.DataFrame:
+def _picks_table(records: list[dict]) -> pd.DataFrame:
     # Fixed columns and types, so an empty table matches a real one
     return pd.DataFrame(records, columns=list(PICK_DTYPES)).astype(PICK_DTYPES)
 
@@ -237,7 +236,7 @@ def parse_group_picks(html: str, week: int) -> pd.DataFrame:
         yahoo_total = int(cells[-1].get_text(strip=True) or 0)
 
         member_points = 0
-        for game_index, (cell, game) in enumerate(zip(cells[1:-1], games), start=1):
+        for game_index, (cell, game) in enumerate(zip(cells[1:-1], games, strict=True), start=1):
             text = cell.get_text(" ", strip=True)
             if text in ("", "--"):
                 continue  # Pick hidden until the game kicks off, or not made yet
@@ -319,7 +318,7 @@ def select_top_picks(picks: pd.DataFrame) -> pd.DataFrame:
     return picks[picks.confidence == picks.n_games]
 
 
-def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
+def get_top_picks(picks: pd.DataFrame, team_id: int) -> dict[str, list[int]]:
     """Get the teams a member has picked at each week's top confidence value, e.g. to avoid
     repeat 16s
 
@@ -328,34 +327,34 @@ def get_top_picks(picks: pd.DataFrame, team_id: int) -> Dict[str, List[int]]:
         team_id (int): Member whose picks to check
 
     Returns:
-        Dict[str, List[int]]: Standardized team name -> weeks it was the top pick
+        dict[str, list[int]]: Standardized team name -> weeks it was the top pick
     """
     top_picks = select_top_picks(picks)
     matches = top_picks[top_picks.team_id == team_id]
     teams_picked = {}
-    for pick, week in zip(matches.pick, matches.week):
+    for pick, week in zip(matches.pick, matches.week, strict=True):
         teams_picked.setdefault(YAHOO_TEAM_NAMES[pick], []).append(int(week))
     return teams_picked
 
 
-def get_matchups(week_games: pd.DataFrame) -> List[FrozenSet[str]]:
+def get_matchups(week_games: pd.DataFrame) -> list[frozenset[str]]:
     """Get each game's pair of standardized team names, e.g. to match against the odds API
 
     Args:
         week_games (pd.DataFrame): Games from parse_week_games
 
     Returns:
-        List[FrozenSet[str]]: Pair of standardized team names for each game, in order
+        list[frozenset[str]]: Pair of standardized team names for each game, in order
     """
     return [
         frozenset((YAHOO_TEAM_NAMES[favorite], YAHOO_TEAM_NAMES[underdog]))
-        for favorite, underdog in zip(week_games.favorite, week_games.underdog)
+        for favorite, underdog in zip(week_games.favorite, week_games.underdog, strict=True)
     ]
 
 
 def get_open_week(
-    session: requests.Session, group_id: int, open_matchups: Set[FrozenSet[str]]
-) -> Tuple[int, str]:
+    session: requests.Session, group_id: int, open_matchups: set[frozenset[str]]
+) -> tuple[int, str]:
     """Find the week holding the games that are still open, and its group picks page. Yahoo
     keeps showing last week until it rolls over, so if its current week doesn't hold any of
     them, use the next week.
@@ -363,11 +362,11 @@ def get_open_week(
     Args:
         session (requests.Session): Session from get_session
         group_id (int): Pick'em group ID
-        open_matchups (Set[FrozenSet[str]]): Standardized team name pairs of the games that
+        open_matchups (set[frozenset[str]]): Standardized team name pairs of the games that
             haven't started yet
 
     Returns:
-        Tuple[int, str]: Week number, and the HTML of its group picks page
+        tuple[int, str]: Week number, and the HTML of its group picks page
     """
     html = get_page(session, group_picks_url(group_id))
     week = get_current_week(html)
@@ -381,7 +380,7 @@ def get_locked_picks(
     week_games: pd.DataFrame,
     picks: pd.DataFrame,
     team_id: int,
-    open_matchups: Set[FrozenSet[str]],
+    open_matchups: set[frozenset[str]],
 ) -> pd.DataFrame:
     """Find the week's games that can no longer be picked, along with one member's picks on
     them
@@ -390,7 +389,7 @@ def get_locked_picks(
         week_games (pd.DataFrame): Games from parse_week_games
         picks (pd.DataFrame): Picks from parse_group_picks for the same week
         team_id (int): Member whose picks to return
-        open_matchups (Set[FrozenSet[str]]): Standardized team name pairs of the games that
+        open_matchups (set[frozenset[str]]): Standardized team name pairs of the games that
             haven't started yet
 
     Raises:

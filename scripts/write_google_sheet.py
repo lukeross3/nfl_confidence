@@ -89,7 +89,7 @@ def main(config: ScriptParams):
         values=get_unused_confidence(n_games=len(games), max_confidence=config.max_confidence),
     )
     gid2rank = {}
-    for game, confidence_rank in zip(games, confidence_ranks):
+    for game, confidence_rank in zip(games, confidence_ranks, strict=True):
         gid2rank[game.id] = int(confidence_rank)
 
     # Loop over games and write confidence scores
