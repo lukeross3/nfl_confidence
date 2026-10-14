@@ -1,11 +1,9 @@
 import argparse
-from datetime import datetime
 
 import gspread as gs
 import pandas as pd
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from pytz import timezone
 from tqdm import tqdm
 
 from nfl_confidence.odds import (
@@ -14,7 +12,13 @@ from nfl_confidence.odds import (
     parse_the_odds_json,
 )
 from nfl_confidence.settings import Settings
-from nfl_confidence.utils import get_ranks, read_config, update_cell
+from nfl_confidence.utils import (
+    assign_confidence,
+    confirm_system_time,
+    get_unused_confidence,
+    read_config,
+    update_cell,
+)
 
 
 class ScriptParams(BaseModel):
@@ -36,12 +40,7 @@ class ScriptParams(BaseModel):
 def main(config: ScriptParams):
     # Check the current time
     settings = Settings()
-    now = datetime.now(tz=timezone("US/Eastern"))
-    date_str = now.strftime("%I:%M on %A, %b %d")
-    correct_time = input(f"\n\nIs it curently {date_str}? (y/n) ")
-    if correct_time.lower() != "y":
-        logger.error("System time is wrong. Please restart")
-        exit()
+    confirm_system_time()
 
     # Load the spreadsheet object
     gc = gs.service_account(filename=settings.GOOGLE_SHEETS_SECRET_PATH)
@@ -85,9 +84,10 @@ def main(config: ScriptParams):
 
     # Compute confidence ranks
     win_probs = [game.win_probability for game in games]
-    confidence_ranks = get_ranks(values=win_probs, zero_indexed=False)
-    max_conf = max(confidence_ranks)
-    confidence_ranks += config.max_confidence - max_conf
+    confidence_ranks = assign_confidence(
+        win_probs=win_probs,
+        values=get_unused_confidence(n_games=len(games), max_confidence=config.max_confidence),
+    )
     gid2rank = {}
     for game, confidence_rank in zip(games, confidence_ranks):
         gid2rank[game.id] = int(confidence_rank)

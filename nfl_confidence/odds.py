@@ -1,5 +1,3 @@
-import json
-import os
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Dict, List, Optional, Set
@@ -10,6 +8,8 @@ from pydantic import BaseModel, Field, computed_field, field_validator
 from pytz import timezone
 from typing_extensions import Annotated
 
+from nfl_confidence.utils import load_asset
+
 
 def get_valid_team_names() -> Set[str]:
     """Return a set containing all valid team names
@@ -17,12 +17,7 @@ def get_valid_team_names() -> Set[str]:
     Returns:
         Set[str]: A set of all valid team names
     """
-    current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file)
-    file_path = os.path.join(current_dir, "assets", "team_names.json")
-    with open(file_path, "r") as f:
-        name_map = json.load(f)
-    return set(name_map)
+    return set(load_asset("team_names.json"))
 
 
 def convert_team_name(name: str) -> str:
@@ -217,16 +212,19 @@ def parse_the_odds_json(the_odds_json: List[Dict]) -> List[GameOdds]:
 
 
 def filter_games_by_date(
-    games: List[GameOdds], after: datetime = datetime.min, before: datetime = datetime.max
+    games: List[GameOdds],
+    after: datetime = datetime.min.replace(tzinfo=timezone("UTC")),
+    before: datetime = datetime.max.replace(tzinfo=timezone("UTC")),
 ) -> List[GameOdds]:
     """Filter the list of games down to only those with a commence_time between the given range.
 
     Args:
         games (List[GameOdds]): List of GameOdds objects
         after (datetime, optional): Keep only games with commence_time strictly greater than after.
-            Defaults to datetime.min.
-        before (datetime, optional): Keep only games with commence_time strictly less than after.
-            Defaults to datetime.max.
+            Defaults to datetime.min in UTC. Like commence_time, it needs a timezone, since
+            Python can't compare datetimes with and without one.
+        before (datetime, optional): Keep only games with commence_time strictly less than
+            before. Defaults to datetime.max in UTC.
 
     Returns:
         List[GameOdds]: Filter game list

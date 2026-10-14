@@ -3,6 +3,7 @@ from math import isclose
 
 from nfl_confidence.odds import (
     convert_team_name,
+    filter_games_by_date,
     get_this_weeks_games,
     parse_the_odds_json,
 )
@@ -15,6 +16,18 @@ def test_convert_team_name():
 def test_parse_odds(the_odds_resp_json):
     games = parse_the_odds_json(the_odds_resp_json)
     assert len(games) == 29
+
+
+def test_filter_games_by_date(the_odds_resp_json):
+    games = parse_the_odds_json(the_odds_resp_json)
+    cutoff = datetime.fromisoformat("2023-10-21 00:00:00+00:00")  # After Thursday's game
+
+    # Either bound can be left out, since the defaults have a timezone like commence_time
+    later = filter_games_by_date(games, after=cutoff)
+    earlier = filter_games_by_date(games, before=cutoff)
+    assert len(later) > 0 and len(earlier) > 0
+    assert len(later) + len(earlier) == len(games)
+    assert filter_games_by_date(games) == games
 
 
 def test_get_this_weeks_games_tuesday(the_odds_resp_json, mocker):
