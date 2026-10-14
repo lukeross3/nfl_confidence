@@ -1,13 +1,6 @@
-isort:
-	uv run isort .
-
-black:
-	uv run black .
-
-flake8:
-	uv run flake8 .
-
-format: isort black flake8
+format:
+	uv run ruff check --fix .
+	uv run ruff format .
 
 test:
 	uv run coverage run --source=nfl_confidence/ -m pytest tests/

@@ -31,9 +31,8 @@ jobs:
     # Step 3) Run linting checks
     - name: Linting
       run: |
-        uv run isort --check-only --profile black .
-        uv run black --check .
-        uv run flake8
+        uv run ruff format --check .
+        uv run ruff check .
     - name: Tests
       run: |
         uv run pytest tests/
