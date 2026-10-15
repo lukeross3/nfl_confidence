@@ -12,14 +12,10 @@ This repo is a personal project to help me beat my friends in our [NFL confidenc
 
 Using this strategy, I've won the league the last 2 seasons (2022-2023 and 2023-2024) and beat Shivam for the 4th straight year. The league has since been named **"Man vs. Machine"** which I'd call a success in its own right!
 
-## Setup
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/). The first `uv run` sets up the environment from `uv.lock`.
-
 ## Example Run
 
 ```
-$ uv run scripts/print_confidence.py
+$ python scripts/print_confidence.py
                home_team              away_team      predicted_winner  confidence_prob  confidence_rank
 0    pittsburgh-steelers       tennessee-titans   pittsburgh-steelers         0.576144                8
 1     kansas-city-chiefs         miami-dolphins    kansas-city-chiefs         0.522164                3
@@ -43,13 +39,13 @@ This run doesn't use `--yahoo`, so values count down from 16 (`--max_confidence`
 
 Our league runs on Yahoo Pick'em, which has no API, so these scripts read the league's pages using your own Yahoo login.
 
-1. Log in once with `uv run scripts/yahoo_login.py`. It opens Chrome; sign in, and your session is saved to `secrets/`. Run it again whenever a script says your session has expired.
-2. Run `uv run scripts/print_confidence.py --yahoo` to make your picks, even mid-week. It skips the confidence values you've already used on games that have started, and warns you if your top pick repeats a team you've used as a top pick before.
+1. Log in once with `python scripts/yahoo_login.py`. It opens Chrome; sign in, and your session is saved to `secrets/`. Run it again whenever a script says your session has expired.
+2. Run `python scripts/print_confidence.py --yahoo` to make your picks, even mid-week. It skips the confidence values you've already used on games that have started, and warns you if your top pick repeats a team you've used as a top pick before.
 
 Two more scripts look at the whole league's season so far:
 
-- `uv run scripts/print_top_picks.py` shows everyone's top pick each week and calls out repeats.
-- `uv run scripts/get_league_picks.py` saves every pick to `results/league_picks_<season>.csv`.
+- `python scripts/print_top_picks.py` shows everyone's top pick each week and calls out repeats.
+- `python scripts/get_league_picks.py` saves every pick to `results/league_picks_<season>.csv`.
 
 ## What is a Confidence League?
 
