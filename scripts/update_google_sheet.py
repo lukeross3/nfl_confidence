@@ -174,7 +174,7 @@ new_df = pd.DataFrame(
             "confidence_prob": game.win_probability,
             "confidence_rank": confidence_rank,
         }
-        for game, confidence_rank in zip(games, confidence_ranks)
+        for game, confidence_rank in zip(games, confidence_ranks, strict=True)
     ]
 )
 

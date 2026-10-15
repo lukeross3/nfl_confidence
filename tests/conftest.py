@@ -13,13 +13,13 @@ def the_odds_file_path():
 
 @pytest.fixture
 def the_odds_resp_json(the_odds_file_path):
-    with open(the_odds_file_path, "r") as f:
+    with open(the_odds_file_path) as f:
         return json.load(f)
 
 
 def _read_asset(name):
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    with open(os.path.join(current_dir, "assets", name), "r") as f:
+    with open(os.path.join(current_dir, "assets", name)) as f:
         return f.read()
 
 
