@@ -19,9 +19,12 @@ from nfl_confidence.yahoo import (
     get_open_week,
     get_page,
     get_top_picks,
+    get_weekly_points,
     group_picks_url,
+    load_league_picks,
     parse_group_picks,
     parse_week_games,
+    save_league_picks,
     select_top_picks,
 )
 
@@ -146,6 +149,50 @@ def test_parse_group_picks_in_progress_week(group_picks_week4_html):
         5: 0,
         6: 0,
     }
+
+
+def test_save_and_load_league_picks(group_picks_week1_html, group_picks_week4_live_html, tmp_path):
+    # The live week's pending games have winner, correct and points missing
+    picks = pd.concat(
+        [
+            parse_group_picks(group_picks_week1_html, week=1),
+            parse_group_picks(group_picks_week4_live_html, week=4),
+        ],
+        ignore_index=True,
+    )
+    path = str(tmp_path / "picks.csv")
+    save_league_picks(picks, path)
+    pd.testing.assert_frame_equal(load_league_picks(path), picks)
+
+
+def test_get_weekly_points(
+    group_picks_week1_html, group_picks_week4_html, group_picks_week4_live_html
+):
+    week1 = parse_group_picks(group_picks_week1_html, week=1)
+
+    # Member 6 skipped week 2, so gets 0
+    week2 = week1[week1.team_id != 6].assign(week=2)
+
+    # Week 3's last game ended in a tie: no winner, and picks not graded, so they score 0
+    tie = week1.game == 16
+    week3 = week1.assign(week=3)
+    week3.loc[tie, ["winner", "correct", "points"]] = None
+
+    # Weeks 4 and 5 have games that haven't kicked off: week 4 has only played its first
+    # game, and week 5 only shows member 3's own picks on its later games
+    week4 = parse_group_picks(group_picks_week4_html, week=4)
+    week5 = parse_group_picks(group_picks_week4_live_html, week=4).assign(week=5)
+
+    points = get_weekly_points(pd.concat([week1, week2, week3, week4, week5]))
+    assert points.index.tolist() == [1, 2, 3]
+    assert points.columns.tolist() == [f"Member {i}" for i in range(1, 7)]
+    assert points.loc[1].tolist() == [69, 90, 101, 91, 93, 95]
+    assert points.loc[2].tolist() == [69, 90, 101, 91, 93, 0]
+    tie_points = week1[tie].groupby("team_name").points.sum()
+    assert points.loc[3].tolist() == (points.loc[1] - tie_points).tolist()
+
+    # No picks visible yet
+    assert get_weekly_points(week1.iloc[0:0]).empty
 
 
 def test_parse_group_picks_total_mismatch(group_picks_week1_html):

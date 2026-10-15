@@ -4,7 +4,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from nfl_confidence.yahoo import add_yahoo_args, get_league_picks, get_session
+from nfl_confidence.yahoo import add_yahoo_args, get_league_picks, get_session, save_league_picks
 
 # Setup and parse script args
 now = datetime.now()
@@ -31,7 +31,7 @@ os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 # Fetch and parse each week's group picks page
 session = get_session(args.state_path)
 picks = get_league_picks(session, args.group_id, args.first_week, args.last_week)
-picks.to_csv(output_path, index=False)
+save_league_picks(picks, output_path)
 logger.info(f"Wrote {len(picks)} picks over {picks.week.nunique()} weeks to {output_path}")
 
 # Summarize finished games: points and accuracy by member. Pending games have correct missing,

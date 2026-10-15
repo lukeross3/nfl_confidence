@@ -305,6 +305,55 @@ def get_league_picks(
     return pd.concat(weeks, ignore_index=True)
 
 
+def save_league_picks(picks: pd.DataFrame, path: str) -> None:
+    """Save picks to a CSV, e.g. to keep the season after Yahoo takes its pages down
+
+    Args:
+        picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
+        path (str): CSV path
+    """
+    picks.to_csv(path, index=False)
+
+
+def load_league_picks(path: str) -> pd.DataFrame:
+    """Load picks saved by save_league_picks
+
+    Args:
+        path (str): CSV path
+
+    Returns:
+        pd.DataFrame: Picks, with the columns and types from PICK_DTYPES
+    """
+    return pd.read_csv(path, dtype=PICK_DTYPES)
+
+
+def get_weekly_points(picks: pd.DataFrame) -> pd.DataFrame:
+    """Total each member's points in each finished week. Weeks with games that haven't kicked
+    off are left out, since their totals aren't final.
+
+    Args:
+        picks (pd.DataFrame): Picks from parse_group_picks or get_league_picks
+
+    Returns:
+        pd.DataFrame: Points, indexed by week, with a column per member named by team_name. A
+            member with no picks in a finished week gets 0.
+    """
+    # Yahoo shows your own picks before kickoff, but other members' only once a game kicks
+    # off, so a game has kicked off once more than one member's pick on it is visible. Yahoo
+    # shows a tie like a game still being played (no winner, picks not graded), so a week
+    # counts as finished as soon as its last game kicks off.
+    n_games = picks.groupby("week").n_games.first()
+    n_members = picks.groupby(["week", "game"]).team_id.nunique()
+    n_kicked_off = (n_members > 1).groupby(level="week").sum()
+    is_finished = n_kicked_off == n_games
+    if not is_finished.all():
+        in_progress = is_finished.index[~is_finished].tolist()
+        logger.info(f"Leaving out weeks still in progress: {in_progress}")
+    finished = picks[picks.week.isin(is_finished.index[is_finished])]
+    points = finished.groupby(["week", "team_name"]).points.sum().unstack(fill_value=0)
+    return points.astype("int64")
+
+
 def select_top_picks(picks: pd.DataFrame) -> pd.DataFrame:
     """Select the picks made at each week's top confidence value. The top value is the week's
     number of games, so 16 normally, and less on bye weeks.

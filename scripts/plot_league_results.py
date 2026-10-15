@@ -1,7 +1,67 @@
+import argparse
 import os
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import MaxNLocator
+
+from nfl_confidence.yahoo import (
+    PICK_DTYPES,
+    add_yahoo_args,
+    get_league_picks,
+    get_session,
+    get_weekly_points,
+    load_league_picks,
+)
+
+# Setup and parse script args
+now = datetime.now()
+current_season = now.year if now.month >= 3 else now.year - 1
+parser = argparse.ArgumentParser(
+    description="Plot the league's points by week. Downloads this season's picks from Yahoo, "
+    "or reads a saved season: picks saved by scripts/get_league_picks.py, or a tab-separated "
+    "table of weekly totals with a column per member, as in older seasons' league_results files"
+)
+add_yahoo_args(parser)
+parser.add_argument(
+    "--season",
+    type=int,
+    default=current_season,
+    help="Season year, used to name the images",
+)
+parser.add_argument(
+    "--input_path",
+    type=str,
+    default=None,
+    help="Saved season to plot, instead of downloading this season from Yahoo",
+)
+parser.add_argument("--output_dir", type=str, default="images")
+args = parser.parse_args()
+
+# Yahoo gives the group a new ID each season, and takes the pages down once it's over
+if args.input_path is None and args.season != current_season:
+    parser.error(f"Yahoo only has the {current_season} season. Pass --input_path to plot another")
+
+# Get points by week, with a row per week and a column per member. Picks have a row per
+# (member, game), so total those up. Older seasons' files already have the weekly totals.
+if args.input_path is None:
+    df = get_weekly_points(get_league_picks(get_session(args.state_path), args.group_id))
+elif set(PICK_DTYPES) <= set(pd.read_csv(args.input_path, nrows=0).columns):
+    df = get_weekly_points(load_league_picks(args.input_path))
+else:
+    df = pd.read_csv(args.input_path, sep="\t")
+    df.index = pd.RangeIndex(start=1, stop=len(df) + 1)
+if df.empty:
+    raise ValueError("No finished weeks to plot")
+
+# images/ is gitignored, so a fresh clone won't have it
+os.makedirs(args.output_dir, exist_ok=True)
+
+
+def image_path(name: str) -> str:
+    return os.path.join(args.output_dir, f"{name}_{args.season}.png")
+
 
 # Set a clean, modern style
 plt.style.use("seaborn-v0_8-whitegrid")
@@ -32,24 +92,16 @@ plt.rcParams.update(
     }
 )
 
-year = 2025
-
-# Get raw result
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_dir = os.path.join(script_dir, os.path.pardir)
-csv_path = os.path.join(project_dir, "results", f"league_results_{year}.csv")
-df = pd.read_csv(csv_path, sep="\t")
-df.index = pd.RangeIndex(start=1, stop=len(df) + 1)
-
 # Plot weekly results
 fig, ax = plt.subplots()
 df.plot(ax=ax, linewidth=2.5, marker="o", markersize=5, alpha=0.85)
 ax.set_title("Points Per Week")
 ax.set_xlabel("Week Number")
 ax.set_ylabel("Points")
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 plt.tight_layout()
-plt.savefig(os.path.join(project_dir, "images", f"weekly_{year}.png"), dpi=200, bbox_inches="tight")
+plt.savefig(image_path("weekly"), dpi=200, bbox_inches="tight")
 
 # Plot histogram of weekly scores
 n_cols = len(df.columns)
@@ -75,31 +127,30 @@ for i, col in enumerate(df.columns):
     ax.set_title(col, fontsize=12, fontweight="bold")
     ax.set_xlabel("Points Per Week")
     ax.set_ylabel("Frequency")
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     ax.set_xlim(bin_edges[0], bin_edges[-1])
 # Hide unused subplots
 for j in range(i + 1, len(axes)):
     axes[j].set_visible(False)
 fig.suptitle("Distribution of Weekly Scores", fontsize=16, fontweight="bold", y=1.02)
 plt.tight_layout()
-plt.savefig(
-    os.path.join(project_dir, "images", f"weekly_hist_{year}.png"), dpi=200, bbox_inches="tight"
-)
+plt.savefig(image_path("weekly_hist"), dpi=200, bbox_inches="tight")
 
-# Plot cumulative results
+# Plot cumulative results, starting from 0 the week before the first
 fig, ax = plt.subplots()
-new_row = pd.DataFrame({col: 0 for col in df.columns}, index=[0])
-df = pd.concat([new_row, df]).reset_index(drop=True)
-df.cumsum().plot(ax=ax, linewidth=2.5, marker="o", markersize=4, alpha=0.85)
+start = pd.DataFrame(0, index=[df.index[0] - 1], columns=df.columns)
+cum_df = pd.concat([start, df]).cumsum()
+cum_df.plot(ax=ax, linewidth=2.5, marker="o", markersize=4, alpha=0.85)
 ax.set_title("Total Points")
 ax.set_xlabel("Week Number")
 ax.set_ylabel("Points")
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 plt.tight_layout()
-plt.savefig(os.path.join(project_dir, "images", f"total_{year}.png"), dpi=200, bbox_inches="tight")
+plt.savefig(image_path("total"), dpi=200, bbox_inches="tight")
 
 # Plot points behind 1st
 fig, ax = plt.subplots()
-cum_df = df.cumsum()
 df_max = cum_df.max(axis=1)
 duplicated_max = pd.DataFrame({col: df_max for col in df.columns})
 df_diff = cum_df - duplicated_max
@@ -107,16 +158,13 @@ df_diff.plot(ax=ax, linewidth=2.5, marker="o", markersize=4, alpha=0.85)
 ax.set_title("Points Behind 1st")
 ax.set_xlabel("Week Number")
 ax.set_ylabel("Points")
+ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 ax.axhline(y=0, color="gray", linestyle="--", linewidth=1, alpha=0.7)
 ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 plt.tight_layout()
-plt.savefig(
-    os.path.join(project_dir, "images", f"points_behind_{year}.png"), dpi=200, bbox_inches="tight"
-)
+plt.savefig(image_path("points_behind"), dpi=200, bbox_inches="tight")
 
 # Create statistics graphic
-df_stats = pd.read_csv(csv_path, sep="\t")
-
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 fig.suptitle("League Statistics", fontsize=18, fontweight="bold", y=0.98)
 
@@ -124,7 +172,7 @@ stat_colors = {"avg": "#3498db", "std": "#9b59b6", "best": "#2ecc71", "worst": "
 
 # Average weekly score
 ax = axes[0, 0]
-avg_scores = df_stats.mean().sort_values(ascending=False)
+avg_scores = df.mean().sort_values(ascending=False)
 bars = ax.barh(
     avg_scores.index, avg_scores.values, color=stat_colors["avg"], edgecolor="white", linewidth=1.5
 )
@@ -143,7 +191,7 @@ ax.set_xlim(right=avg_scores.max() * 1.15)
 
 # Standard deviation
 ax = axes[0, 1]
-std_dev = df_stats.std().sort_values(ascending=False)
+std_dev = df.std().sort_values(ascending=False)
 bars = ax.barh(
     std_dev.index, std_dev.values, color=stat_colors["std"], edgecolor="white", linewidth=1.5
 )
@@ -162,7 +210,7 @@ ax.set_xlim(right=std_dev.max() * 1.15)
 
 # Best week score
 ax = axes[1, 0]
-best_scores = df_stats.max().sort_values(ascending=False)
+best_scores = df.max().sort_values(ascending=False)
 bars = ax.barh(
     best_scores.index,
     best_scores.values,
@@ -187,7 +235,7 @@ ax.set_xlim(right=best_scores.max() * 1.1)
 
 # Worst week score
 ax = axes[1, 1]
-worst_scores = df_stats.min().sort_values(ascending=True)
+worst_scores = df.min().sort_values(ascending=True)
 bars = ax.barh(
     worst_scores.index,
     worst_scores.values,
@@ -212,7 +260,7 @@ ax.set_xlim(right=worst_scores.max() * 1.1)
 
 plt.tight_layout()
 plt.savefig(
-    os.path.join(project_dir, "images", f"stats_{year}.png"),
+    image_path("stats"),
     dpi=200,
     bbox_inches="tight",
     facecolor="white",

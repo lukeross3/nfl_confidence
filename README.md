@@ -42,10 +42,11 @@ Our league runs on Yahoo Pick'em, which has no API, so these scripts read the le
 1. Log in once with `python scripts/yahoo_login.py`. It opens Chrome; sign in, and your session is saved to `secrets/`. Run it again whenever a script says your session has expired.
 2. Run `python scripts/print_confidence.py --yahoo` to make your picks, even mid-week. It skips the confidence values you've already used on games that have started, and warns you if your top pick repeats a team you've used as a top pick before.
 
-Two more scripts look at the whole league's season so far:
+Three more scripts look at the whole league's season so far:
 
 - `python scripts/print_top_picks.py` shows everyone's top pick each week and calls out repeats.
-- `python scripts/get_league_picks.py` saves every pick to `results/league_picks_<season>.csv`.
+- `python scripts/plot_league_results.py` plots everyone's points by week to `images/`. Pass `--input_path` to plot a saved season instead.
+- `python scripts/get_league_picks.py` saves every pick to `results/league_picks_<season>.csv`. Yahoo takes the season's pages down once it ends, so save it before then.
 
 ## What is a Confidence League?
 
