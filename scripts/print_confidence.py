@@ -20,6 +20,7 @@ from nfl_confidence.yahoo import (
     add_yahoo_args,
     get_league_picks,
     get_locked_picks,
+    get_matchups,
     get_open_week,
     get_session,
     get_top_picks,
@@ -101,6 +102,12 @@ if args.yahoo:
         picks=parse_group_picks(html, week),
         team_id=args.team_id,
         open_matchups=open_matchups,
+    )
+    # List games in the order Yahoo shows them. get_locked_picks checked every open game is
+    # one of the week's games.
+    yahoo_game = dict(zip(get_matchups(week_games), week_games.game, strict=True))
+    games = sorted(
+        games, key=lambda x: yahoo_game[frozenset((x.home_team.value, x.away_team.value))]
     )
     # Yahoo's values run 1 through the week's number of games, so bye weeks top out below 16
     n_games = len(week_games)
